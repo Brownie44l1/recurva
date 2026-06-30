@@ -12,6 +12,7 @@ import { subscriptionRoutes } from './routes/subscription.routes';
 import { usageRoutes } from './routes/usage.routes';
 import { invoiceRoutes } from './routes/invoice.routes';
 import { webhookRoutes } from './routes/webhook.routes';
+import { handleNombaCheckoutCallback } from '../webhooks/inbound/nomba';
 
 export function createApp() {
   const app = new Hono();
@@ -33,6 +34,8 @@ export function createApp() {
       404,
     );
   });
+
+  app.post('/webhooks/nomba/checkout', handleNombaCheckoutCallback);
 
   app.get('/health', async (c) => {
     try {
