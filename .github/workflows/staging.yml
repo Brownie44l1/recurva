@@ -2,12 +2,12 @@ name: Staging Deploy
 
 on:
   push:
-    branches: [develop]
+    branches: [dev]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/develop'
+    if: github.ref == 'refs/heads/dev'
 
     steps:
       - uses: actions/checkout@v4
@@ -23,6 +23,20 @@ jobs:
       - name: Type check
         run: bun run typecheck
 
+      - name: Validate secrets
+        env:
+          DEV_HOST: ${{ secrets.DEV_HOST }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          if [ -z "$DEV_HOST" ]; then
+            echo "::error::DEV_HOST secret is not set — add it in GitHub repo settings"
+            exit 1
+          fi
+          if [ -z "$SSH_PRIVATE_KEY" ]; then
+            echo "::error::SSH_PRIVATE_KEY secret is not set"
+            exit 1
+          fi
+
       - name: Deploy to dev server
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -33,6 +47,6 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           rsync -avz --exclude node_modules --exclude .env --exclude .git \
             -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
-            ./ ubuntu@$DEV_HOST:/opt/recurva/
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ubuntu@$DEV_HOST \
+            ./ "ubuntu@${DEV_HOST}:/opt/recurva/"
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "ubuntu@${DEV_HOST}" \
             "cd /opt/recurva && docker compose up -d --build"
