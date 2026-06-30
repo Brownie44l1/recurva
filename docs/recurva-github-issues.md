@@ -20,14 +20,14 @@
 Initialize the GitHub repository with a Bun project, establish the canonical folder structure (`src/`, `migrations/`, `tests/`, `scripts/`), and set up `.env.example` with all required environment variable keys. This is the foundation every other ticket builds on — no other work begins until this is done.
 
 **Acceptance Criteria:**
-- [ ] `bun init` completed; `package.json` reflects project name `recurva`
-- [ ] Folder structure matches spec: `src/{routes,middleware,services,db,lib}`, `migrations/`, `tests/`, `scripts/`
-- [ ] `.env.example` documents all required vars (DATABASE_URL, PORT, JWT_SECRET, NOMBA_*, etc.)
-- [ ] `.gitignore` excludes `node_modules`, `.env`, `dist/`
-- [ ] `README.md` placeholder committed
+- [x] `bun init` completed; `package.json` reflects project name `recurva`
+- [x] Folder structure matches spec: `src/{routes,middleware,services,db,lib}`, `migrations/`, `tests/`, `scripts/`
+- [x] `.env.example` documents all required vars (DATABASE_URL, PORT, JWT_SECRET, NOMBA_*, etc.)
+- [x] `.gitignore` excludes `node_modules`, `.env`, `dist/`
+- [x] `README.md` placeholder committed
 
 **Test Requirements:**
-- [ ] None at this stage (pure scaffolding)
+- [x] None at this stage (pure scaffolding)
 
 **Estimated Time:** 0.5 hours
 
@@ -43,14 +43,14 @@ Initialize the GitHub repository with a Bun project, establish the canonical fol
 Create a `Dockerfile` for the Bun application and a `docker-compose.yml` that orchestrates the app container alongside a PostgreSQL 16 container. This enables fully reproducible local development and mirrors the production topology.
 
 **Acceptance Criteria:**
-- [ ] `Dockerfile` uses official `oven/bun` base image; multi-stage build for production
-- [ ] `docker-compose.yml` defines `app` and `postgres` services with health checks
-- [ ] `postgres` service persists data via a named volume
-- [ ] `bun run dev` inside the container hot-reloads on file changes
-- [ ] `docker compose up` starts the full stack with no manual steps
+- [x] `Dockerfile` uses official `oven/bun` base image; multi-stage build for production
+- [x] `docker-compose.yml` defines `app` and `postgres` services with health checks
+- [x] `postgres` service persists data via a named volume
+- [x] `bun run dev` inside the container hot-reloads on file changes
+- [x] `docker compose up` starts the full stack with no manual steps
 
 **Test Requirements:**
-- [ ] Verify `docker compose up` reaches healthy status end-to-end
+- [x] Verify `docker compose up` reaches healthy status end-to-end
 
 **Estimated Time:** 1 hour
 
@@ -66,13 +66,13 @@ Create a `Dockerfile` for the Bun application and a `docker-compose.yml` that or
 Configure and export a singleton `postgres.js` connection pool as `src/db/client.ts`. Define connection options (max connections, idle timeout, SSL toggle) driven by environment variables. This module is imported by every service layer query.
 
 **Acceptance Criteria:**
-- [ ] `src/db/client.ts` exports a typed `sql` instance from `postgres`
-- [ ] Pool settings configurable via env vars (`DB_MAX_CONNECTIONS`, `DB_IDLE_TIMEOUT`)
-- [ ] Graceful shutdown hook closes pool on `SIGTERM`/`SIGINT`
-- [ ] SSL enabled when `NODE_ENV=production`
+- [x] `src/db/client.ts` exports a typed `sql` instance from `postgres`
+- [x] Pool settings configurable via env vars (`DB_MAX_CONNECTIONS`, `DB_IDLE_TIMEOUT`)
+- [x] Graceful shutdown hook closes pool on `SIGTERM`/`SIGINT`
+- [x] SSL enabled when `NODE_ENV=production`
 
 **Test Requirements:**
-- [ ] Integration test: connect, run `SELECT 1`, assert result
+- [x] Integration test: connect, run `SELECT 1`, assert result
 
 **Estimated Time:** 0.5 hours
 
@@ -88,13 +88,13 @@ Configure and export a singleton `postgres.js` connection pool as `src/db/client
 Build a lightweight migration runner in `scripts/migrate.ts` that reads numbered `.sql` files from `migrations/`, tracks applied migrations in a `schema_migrations` table, and applies new ones in order. Keeps full control without adding an ORM migration dependency.
 
 **Acceptance Criteria:**
-- [ ] `schema_migrations` table created automatically on first run
-- [ ] Runner applies only unapplied migrations in filename order
-- [ ] `bun run migrate` executes runner; `bun run migrate:rollback` reverts last migration
-- [ ] Migration filenames follow `NNN_description.sql` convention
+- [x] `schema_migrations` table created automatically on first run
+- [x] Runner applies only unapplied migrations in filename order
+- [x] `bun run migrate` executes runner; `bun run migrate:rollback` reverts last migration
+- [x] Migration filenames follow `NNN_description.sql` convention
 
 **Test Requirements:**
-- [ ] Unit test: idempotent — running runner twice applies each migration once only
+- [x] Unit test: idempotent — running runner twice applies each migration once only
 
 **Estimated Time:** 1 hour
 
@@ -110,13 +110,13 @@ Build a lightweight migration runner in `scripts/migrate.ts` that reads numbered
 Create the main Hono application in `src/app.ts` and a server entrypoint `src/index.ts` that binds to a configurable port. Mount a root router and apply global middleware ordering. This is the skeleton all route groups plug into.
 
 **Acceptance Criteria:**
-- [ ] `src/index.ts` starts Bun HTTP server; port read from `PORT` env var (default 3000)
-- [ ] Hono app instance exported from `src/app.ts` for testability
-- [ ] 404 and global error handler registered
-- [ ] Server logs `Recurva listening on :PORT` at startup
+- [x] `src/index.ts` starts Bun HTTP server; port read from `PORT` env var (default 3000)
+- [x] Hono app instance exported from `src/app.ts` for testability
+- [x] 404 and global error handler registered
+- [x] Server logs `Recurva listening on :PORT` at startup
 
 **Test Requirements:**
-- [ ] Integration test: `GET /` returns 404 with JSON error body
+- [x] Integration test: `GET /` returns 404 with JSON error body
 
 **Estimated Time:** 0.5 hours
 
@@ -132,13 +132,13 @@ Create the main Hono application in `src/app.ts` and a server entrypoint `src/in
 Implement a middleware that generates a `uuid v4` request ID for every incoming request, attaches it to the Hono context, and echoes it in the `X-Request-ID` response header. Enables end-to-end tracing across logs and external systems.
 
 **Acceptance Criteria:**
-- [ ] Middleware reads `X-Request-ID` header if present; generates one if absent
-- [ ] Request ID stored on Hono context as `c.var.requestId`
-- [ ] `X-Request-ID` present on every response
-- [ ] Middleware registered before all route handlers
+- [x] Middleware reads `X-Request-ID` header if present; generates one if absent
+- [x] Request ID stored on Hono context as `c.var.requestId`
+- [x] `X-Request-ID` present on every response
+- [x] Middleware registered before all route handlers
 
 **Test Requirements:**
-- [ ] Unit test: absent header → ID generated; present header → ID echoed
+- [x] Unit test: absent header → ID generated; present header → ID echoed
 
 **Estimated Time:** 0.5 hours
 
@@ -154,13 +154,13 @@ Implement a middleware that generates a `uuid v4` request ID for every incoming 
 Add request/response logging middleware using a structured JSON logger (pino or equivalent Bun-compatible logger). Every request logs method, path, status, duration, and request ID. Log level driven by `LOG_LEVEL` env var.
 
 **Acceptance Criteria:**
-- [ ] Logs emit valid JSON with fields: `time`, `level`, `requestId`, `method`, `path`, `status`, `durationMs`
-- [ ] `LOG_LEVEL` env var controls verbosity (default `info`)
-- [ ] Sensitive headers (`Authorization`) are redacted from logs
-- [ ] Errors include `err.message` and `err.stack` in log payload
+- [x] Logs emit valid JSON with fields: `time`, `level`, `requestId`, `method`, `path`, `status`, `durationMs`
+- [x] `LOG_LEVEL` env var controls verbosity (default `info`)
+- [x] Sensitive headers (`Authorization`) are redacted from logs
+- [x] Errors include `err.message` and `err.stack` in log payload
 
 **Test Requirements:**
-- [ ] Unit test: log output contains all required fields on a successful request
+- [x] Unit test: log output contains all required fields on a successful request
 
 **Estimated Time:** 0.5 hours
 
@@ -176,13 +176,13 @@ Add request/response logging middleware using a structured JSON logger (pino or 
 Implement `GET /health` that verifies application and database liveness. Returns a structured JSON response indicating service status and DB connectivity. Used by Docker health checks, load balancers, and CI smoke tests.
 
 **Acceptance Criteria:**
-- [ ] `GET /health` returns `200` with `{ status: "ok", db: "ok", uptime: N }`
-- [ ] Returns `503` with `{ status: "degraded", db: "error" }` if DB unreachable
-- [ ] Endpoint requires no authentication
-- [ ] Response time < 200ms under normal conditions
+- [x] `GET /health` returns `200` with `{ status: "ok", db: "ok", uptime: N }`
+- [x] Returns `503` with `{ status: "degraded", db: "error" }` if DB unreachable
+- [x] Endpoint requires no authentication
+- [x] Response time < 200ms under normal conditions
 
 **Test Requirements:**
-- [ ] Integration test: DB healthy → 200; DB down → 503
+- [x] Integration test: DB healthy → 200; DB down → 503
 
 **Estimated Time:** 0.5 hours
 
@@ -198,14 +198,14 @@ Implement `GET /health` that verifies application and database liveness. Returns
 Create `.github/workflows/ci.yml` that runs on every PR and push to `main`. Pipeline installs Bun, spins up a PostgreSQL service container, runs migrations, and executes the full test suite. Blocks merges on failure.
 
 **Acceptance Criteria:**
-- [ ] Workflow triggers on `push` to `main` and `pull_request`
-- [ ] PostgreSQL service container matches production version (16)
-- [ ] `bun test` runs all tests; non-zero exit fails the pipeline
-- [ ] Workflow completes in under 3 minutes on a standard runner
-- [ ] Branch protection rule requires CI to pass before merge
+- [x] Workflow triggers on `push` to `main` and `pull_request`
+- [x] PostgreSQL service container matches production version (16)
+- [x] `bun test` runs all tests; non-zero exit fails the pipeline
+- [x] Workflow completes in under 3 minutes on a standard runner
+- [x] Branch protection rule requires CI to pass before merge
 
 **Test Requirements:**
-- [ ] Verify workflow passes on a clean branch from `main`
+- [x] Verify workflow passes on a clean branch from `main`
 
 **Estimated Time:** 1 hour
 
@@ -225,13 +225,13 @@ Create `.github/workflows/ci.yml` that runs on every PR and push to `main`. Pipe
 Write and apply the migration that creates the `tenants` table with all required columns: id (UUID), name, email, hashed API key, test/live mode flag, Nomba credentials, webhook URL, timestamps, and soft-delete. Schema correctness here underpins the entire multi-tenant architecture.
 
 **Acceptance Criteria:**
-- [ ] `tenants` table created with correct column types and NOT NULL constraints
-- [ ] Unique index on `email`
-- [ ] `mode` column is enum `test | live` with default `test`
-- [ ] Timestamps: `created_at` (default NOW()), `updated_at`, `deleted_at` (nullable)
+- [x] `tenants` table created with correct column types and NOT NULL constraints
+- [x] Unique index on `email`
+- [x] `mode` column is enum `test | live` with default `test`
+- [x] Timestamps: `created_at` (default NOW()), `updated_at`, `deleted_at` (nullable)
 
 **Test Requirements:**
-- [ ] Migration applies and rolls back cleanly
+- [x] Migration applies and rolls back cleanly
 
 **Estimated Time:** 0.5 hours
 
@@ -247,15 +247,15 @@ Write and apply the migration that creates the `tenants` table with all required
 Implement `POST /v1/tenants/register` that accepts tenant name, email, and Nomba credentials, generates a raw API key with `rk_live_` prefix, hashes it with bcrypt, stores the hash, and returns the raw key once (never again). Tenants are created in `test` mode by default.
 
 **Acceptance Criteria:**
-- [ ] Zod schema validates request body; 422 on invalid input
-- [ ] Raw API key format: `rk_live_<32-char-random-hex>`
-- [ ] bcrypt hash (cost factor 12) stored; raw key returned in response and never persisted
-- [ ] Duplicate email returns 409 with descriptive error
-- [ ] Response includes tenant ID, name, email, mode, and the raw API key
+- [x] Zod schema validates request body; 422 on invalid input
+- [x] Raw API key format: `rk_live_<32-char-random-hex>`
+- [x] bcrypt hash (cost factor 12) stored; raw key returned in response and never persisted
+- [x] Duplicate email returns 409 with descriptive error
+- [x] Response includes tenant ID, name, email, mode, and the raw API key
 
 **Test Requirements:**
-- [ ] Unit test: key format regex matches; hash verifies against raw key
-- [ ] Integration test: registration succeeds; duplicate email returns 409
+- [x] Unit test: key format regex matches; hash verifies against raw key
+- [x] Integration test: registration succeeds; duplicate email returns 409
 
 **Estimated Time:** 1 hour
 
@@ -271,15 +271,15 @@ Implement `POST /v1/tenants/register` that accepts tenant name, email, and Nomba
 Implement middleware that reads the `Authorization: Bearer rk_live_...` header, hashes the provided key, performs a constant-time lookup against all tenant hashes, and injects the resolved tenant into Hono context as `c.var.tenant`. Missing or invalid keys return 401.
 
 **Acceptance Criteria:**
-- [ ] Timing-safe comparison used for hash lookup (prevents enumeration)
-- [ ] `c.var.tenant` typed as full tenant record
-- [ ] Missing header → 401 `{ error: "missing_api_key" }`
-- [ ] Invalid key → 401 `{ error: "invalid_api_key" }`
-- [ ] Soft-deleted tenants rejected with 401
+- [x] Timing-safe comparison used for hash lookup (prevents enumeration)
+- [x] `c.var.tenant` typed as full tenant record
+- [x] Missing header → 401 `{ error: "missing_api_key" }`
+- [x] Invalid key → 401 `{ error: "invalid_api_key" }`
+- [x] Soft-deleted tenants rejected with 401
 
 **Test Requirements:**
-- [ ] Unit test: valid key → tenant resolved; invalid key → null
-- [ ] Integration test: protected route rejects missing/invalid keys; accepts valid key
+- [x] Unit test: valid key → tenant resolved; invalid key → null
+- [x] Integration test: protected route rejects missing/invalid keys; accepts valid key
 
 **Estimated Time:** 1 hour
 
@@ -295,13 +295,13 @@ Implement middleware that reads the `Authorization: Bearer rk_live_...` header, 
 Implement `PATCH /v1/tenants/mode` (auth required) that allows a tenant to switch between `test` and `live` mode. In test mode, Nomba calls are routed to the sandbox environment. Mode is included in all billing and audit records.
 
 **Acceptance Criteria:**
-- [ ] `PATCH /v1/tenants/mode` accepts `{ mode: "test" | "live" }`
-- [ ] Mode persisted; all subsequent Nomba client calls use the correct environment URL
-- [ ] `GET /v1/tenants/me` returns current mode
-- [ ] Mode included in all outbound webhook payloads
+- [x] `PATCH /v1/tenants/mode` accepts `{ mode: "test" | "live" }`
+- [x] Mode persisted; all subsequent Nomba client calls use the correct environment URL
+- [x] `GET /v1/tenants/me` returns current mode
+- [x] Mode included in all outbound webhook payloads
 
 **Test Requirements:**
-- [ ] Integration test: toggle live → test → live; Nomba client uses correct base URL per mode
+- [x] Integration test: toggle live → test → live; Nomba client uses correct base URL per mode
 
 **Estimated Time:** 0.5 hours
 
@@ -321,13 +321,13 @@ Implement `PATCH /v1/tenants/mode` (auth required) that allows a tenant to switc
 Create the `plans` and `plan_prices` migrations. `plans` stores metadata, billing interval, and type (`fixed | metered`). `plan_prices` stores per-currency unit amounts, enabling multi-currency pricing without denormalisation.
 
 **Acceptance Criteria:**
-- [ ] `plans` table: id, tenant_id (FK), name, description, interval (`monthly|yearly`), type, archived_at
-- [ ] `plan_prices` table: plan_id (FK), currency (`NGN|USD|GBP|EUR`), unit_amount (integer cents/kobo), metered_aggregate (`sum|max|last`)
-- [ ] Composite unique index on `(plan_id, currency)`
-- [ ] Cascading delete from plan to plan_prices
+- [x] `plans` table: id, tenant_id (FK), name, description, interval (`monthly|yearly`), type, archived_at
+- [x] `plan_prices` table: plan_id (FK), currency (`NGN|USD|GBP|EUR`), unit_amount (integer cents/kobo), metered_aggregate (`sum|max|last`)
+- [x] Composite unique index on `(plan_id, currency)`
+- [x] Cascading delete from plan to plan_prices
 
 **Test Requirements:**
-- [ ] Migration applies and rolls back cleanly
+- [x] Migration applies and rolls back cleanly
 
 **Estimated Time:** 0.5 hours
 
@@ -343,14 +343,14 @@ Create the `plans` and `plan_prices` migrations. `plans` stores metadata, billin
 Implement `POST`, `GET /:id`, `PATCH /:id`, and `GET /` (list) endpoints under `/v1/plans`. All operations are tenant-scoped via the auth middleware. Zod schemas enforce all input. Listing supports `type` and `archived` filter query params.
 
 **Acceptance Criteria:**
-- [ ] `POST /v1/plans` creates plan + at least one price; returns 201
-- [ ] `GET /v1/plans/:id` returns plan with all currency prices; 404 if not found or wrong tenant
-- [ ] `PATCH /v1/plans/:id` allows updating name, description; prices updated via upsert
-- [ ] `GET /v1/plans` supports `?type=metered&archived=false`; paginated (limit/offset)
-- [ ] Zod schemas cover all input; invalid input → 422
+- [x] `POST /v1/plans` creates plan + at least one price; returns 201
+- [x] `GET /v1/plans/:id` returns plan with all currency prices; 404 if not found or wrong tenant
+- [x] `PATCH /v1/plans/:id` allows updating name, description; prices updated via upsert
+- [x] `GET /v1/plans` supports `?type=metered&archived=false`; paginated (limit/offset)
+- [x] Zod schemas cover all input; invalid input → 422
 
 **Test Requirements:**
-- [ ] Integration tests: full CRUD lifecycle; cross-tenant access returns 404
+- [x] Integration tests: full CRUD lifecycle; cross-tenant access returns 404
 
 **Estimated Time:** 1.5 hours
 
@@ -366,13 +366,13 @@ Implement `POST`, `GET /:id`, `PATCH /:id`, and `GET /` (list) endpoints under `
 Implement `DELETE /v1/plans/:id` as a soft-archive operation (sets `archived_at`). Archived plans cannot be used for new subscriptions but existing subscriptions on the plan continue billing. Prevents breaking live subscriptions by deleting a plan.
 
 **Acceptance Criteria:**
-- [ ] `DELETE /v1/plans/:id` sets `archived_at = NOW()`; returns 200 with updated plan
-- [ ] Archived plans excluded from default list unless `?archived=true`
-- [ ] Attempting to create a subscription on an archived plan returns 422
-- [ ] Attempting to archive a plan with active subscriptions returns a warning (not blocked)
+- [x] `DELETE /v1/plans/:id` sets `archived_at = NOW()`; returns 200 with updated plan
+- [x] Archived plans excluded from default list unless `?archived=true`
+- [x] Attempting to create a subscription on an archived plan returns 422
+- [x] Attempting to archive a plan with active subscriptions returns a warning (not blocked)
 
 **Test Requirements:**
-- [ ] Integration test: archive plan → verify excluded from default list; warning on active subscriptions
+- [x] Integration test: archive plan → verify excluded from default list; warning on active subscriptions
 
 **Estimated Time:** 0.5 hours
 
@@ -392,12 +392,12 @@ Implement `DELETE /v1/plans/:id` as a soft-archive operation (sets `archived_at`
 Create the `coupons` migration. Stores coupon code, type (`percentage | fixed`), discount value, duration (`once | repeating | forever`), duration months (for repeating), usage limit, redemption count, expiry date, and tenant scope.
 
 **Acceptance Criteria:**
-- [ ] `coupons` table: id, tenant_id (FK), code (unique per tenant), type, amount, currency (nullable for %, required for fixed), duration, duration_months, max_redemptions, redemption_count, expires_at, created_at, archived_at
-- [ ] Unique index on `(tenant_id, code)`
-- [ ] `redemption_count` has DB-level CHECK >= 0
+- [x] `coupons` table: id, tenant_id (FK), code (unique per tenant), type, amount, currency (nullable for %, required for fixed), duration, duration_months, max_redemptions, redemption_count, expires_at, created_at, archived_at
+- [x] Unique index on `(tenant_id, code)`
+- [x] `redemption_count` has DB-level CHECK >= 0
 
 **Test Requirements:**
-- [ ] Migration applies and rolls back cleanly
+- [x] Migration applies and rolls back cleanly
 
 **Estimated Time:** 0.5 hours
 
@@ -413,13 +413,13 @@ Create the `coupons` migration. Stores coupon code, type (`percentage | fixed`),
 Implement coupon management endpoints: create, retrieve, list, and archive. Tenant-scoped. Zod validation enforces business rules (e.g. `fixed` type requires a currency, `duration_months` required when `duration=repeating`).
 
 **Acceptance Criteria:**
-- [ ] `POST /v1/coupons` creates coupon; validates type-specific fields
-- [ ] `GET /v1/coupons/:id` returns coupon; 404 for wrong tenant
-- [ ] `GET /v1/coupons` lists with pagination; supports `?active=true` filter
-- [ ] `DELETE /v1/coupons/:id` soft-archives (sets `archived_at`)
+- [x] `POST /v1/coupons` creates coupon; validates type-specific fields
+- [x] `GET /v1/coupons/:id` returns coupon; 404 for wrong tenant
+- [x] `GET /v1/coupons` lists with pagination; supports `?active=true` filter
+- [x] `DELETE /v1/coupons/:id` soft-archives (sets `archived_at`)
 
 **Test Requirements:**
-- [ ] Integration test: fixed coupon missing currency → 422; repeating missing duration_months → 422
+- [x] Integration test: fixed coupon missing currency → 422; repeating missing duration_months → 422
 
 **Estimated Time:** 1 hour
 
@@ -435,15 +435,15 @@ Implement coupon management endpoints: create, retrieve, list, and archive. Tena
 Implement a `validateCoupon(code, tenantId, currency)` service function used at subscription creation and invoice generation time. Checks: not archived, not expired, usage limit not exceeded, currency compatibility for fixed coupons. Returns a typed discount descriptor or throws a structured error.
 
 **Acceptance Criteria:**
-- [ ] Expired coupon → `CouponExpiredError`
-- [ ] Usage limit hit → `CouponExhaustedError`
-- [ ] Currency mismatch for fixed type → `CouponCurrencyMismatchError`
-- [ ] Archived coupon → `CouponNotFoundError`
-- [ ] Valid coupon → returns `{ type, amount, currency, duration, durationMonths }`
+- [x] Expired coupon → `CouponExpiredError`
+- [x] Usage limit hit → `CouponExhaustedError`
+- [x] Currency mismatch for fixed type → `CouponCurrencyMismatchError`
+- [x] Archived coupon → `CouponNotFoundError`
+- [x] Valid coupon → returns `{ type, amount, currency, duration, durationMonths }`
 
 **Test Requirements:**
-- [ ] Unit tests for each error path
-- [ ] Unit test: valid coupon returns correct descriptor
+- [x] Unit tests for each error path
+- [x] Unit test: valid coupon returns correct descriptor
 
 **Estimated Time:** 1 hour
 
@@ -459,14 +459,14 @@ Implement a `validateCoupon(code, tenantId, currency)` service function used at 
 Implement `applyCouponToInvoice(invoice, couponDescriptor)` that computes the discount amount, adds a `discount` line item to the invoice, and returns the adjusted total. For `once` duration, marks the coupon-subscription link as consumed after application. Handles rounding for fixed discounts in minor currency units.
 
 **Acceptance Criteria:**
-- [ ] Percentage discount: `floor(subtotal * rate)` with no negative totals (minimum 0)
-- [ ] Fixed discount: subtracted from subtotal; minimum invoice total is 0
-- [ ] `once` duration: coupon marked consumed; not applied on next invoice
-- [ ] `repeating` duration: applied for `duration_months` billing cycles
-- [ ] Discount line item recorded on invoice with coupon code reference
+- [x] Percentage discount: `floor(subtotal * rate)` with no negative totals (minimum 0)
+- [x] Fixed discount: subtracted from subtotal; minimum invoice total is 0
+- [x] `once` duration: coupon marked consumed; not applied on next invoice
+- [x] `repeating` duration: applied for `duration_months` billing cycles
+- [x] Discount line item recorded on invoice with coupon code reference
 
 **Test Requirements:**
-- [ ] Unit tests: percentage, fixed, once, repeating, floor-to-zero edge case
+- [x] Unit tests: percentage, fixed, once, repeating, floor-to-zero edge case
 
 **Estimated Time:** 1 hour
 
@@ -486,12 +486,12 @@ Implement `applyCouponToInvoice(invoice, couponDescriptor)` that computes the di
 Create the `customers` table migration. Customers are tenant-scoped, identified by email within a tenant, and support arbitrary JSONB metadata. This is the anchor record for subscriptions and payment methods.
 
 **Acceptance Criteria:**
-- [ ] `customers` table: id, tenant_id (FK), email, name, phone, metadata (JSONB, default `{}`), created_at, updated_at, deleted_at
-- [ ] Unique index on `(tenant_id, email)`
-- [ ] Soft-delete pattern via `deleted_at`
+- [x] `customers` table: id, tenant_id (FK), email, name, phone, metadata (JSONB, default `{}`), created_at, updated_at, deleted_at
+- [x] Unique index on `(tenant_id, email)`
+- [x] Soft-delete pattern via `deleted_at`
 
 **Test Requirements:**
-- [ ] Migration applies and rolls back cleanly
+- [x] Migration applies and rolls back cleanly
 
 **Estimated Time:** 0.5 hours
 
@@ -507,15 +507,15 @@ Create the `customers` table migration. Customers are tenant-scoped, identified 
 Implement customer management endpoints under `/v1/customers`. All operations tenant-scoped. Supports lookup by email via query param. Metadata field is a free-form JSONB merge-patch on update.
 
 **Acceptance Criteria:**
-- [ ] `POST /v1/customers` creates customer; 409 on duplicate email within tenant
-- [ ] `GET /v1/customers/:id` returns customer with payment method count
-- [ ] `GET /v1/customers?email=...` exact-match lookup by email
-- [ ] `GET /v1/customers` paginated list (limit/offset)
-- [ ] `PATCH /v1/customers/:id` deep-merges metadata; updates name/phone
-- [ ] `DELETE /v1/customers/:id` soft-deletes; returns 409 if active subscriptions exist
+- [x] `POST /v1/customers` creates customer; 409 on duplicate email within tenant
+- [x] `GET /v1/customers/:id` returns customer with payment method count
+- [x] `GET /v1/customers?email=...` exact-match lookup by email
+- [x] `GET /v1/customers` paginated list (limit/offset)
+- [x] `PATCH /v1/customers/:id` deep-merges metadata; updates name/phone
+- [x] `DELETE /v1/customers/:id` soft-deletes; returns 409 if active subscriptions exist
 
 **Test Requirements:**
-- [ ] Integration tests: full CRUD; cross-tenant isolation; duplicate email → 409
+- [x] Integration tests: full CRUD; cross-tenant isolation; duplicate email → 409
 
 **Estimated Time:** 1 hour
 
@@ -535,12 +535,12 @@ Implement customer management endpoints under `/v1/customers`. All operations te
 Create the `payment_methods` table that stores tokenised card references from Nomba (not raw card data). Supports multiple methods per customer with a `is_primary` and `is_backup` flag pair. This schema must never store raw PANs.
 
 **Acceptance Criteria:**
-- [ ] `payment_methods` table: id, customer_id (FK), tenant_id (FK), nomba_token, last4, brand, exp_month, exp_year, is_primary (bool), is_backup (bool), created_at, removed_at
-- [ ] Partial unique index: only one `is_primary = true` per customer (DB constraint)
-- [ ] Partial unique index: only one `is_backup = true` per customer
+- [x] `payment_methods` table: id, customer_id (FK), tenant_id (FK), nomba_token, last4, brand, exp_month, exp_year, is_primary (bool), is_backup (bool), created_at, removed_at
+- [x] Partial unique index: only one `is_primary = true` per customer (DB constraint)
+- [x] Partial unique index: only one `is_backup = true` per customer
 
 **Test Requirements:**
-- [ ] Migration applies; DB constraint rejects two primary cards for same customer
+- [x] Migration applies; DB constraint rejects two primary cards for same customer
 
 **Estimated Time:** 0.5 hours
 
@@ -556,13 +556,13 @@ Create the `payment_methods` table that stores tokenised card references from No
 Implement endpoints for listing, designating primary/backup, and removing payment methods. Card addition is handled via the Nomba checkout callback (Epic 7), not directly here. Removal enforces: cannot remove primary if it's the only method and an active subscription exists.
 
 **Acceptance Criteria:**
-- [ ] `GET /v1/customers/:id/payment-methods` lists all methods for customer
-- [ ] `PATCH /v1/customers/:id/payment-methods/:pmId/primary` promotes to primary (demotes old primary)
-- [ ] `PATCH /v1/customers/:id/payment-methods/:pmId/backup` designates backup
-- [ ] `DELETE /v1/customers/:id/payment-methods/:pmId` soft-removes; guards against orphaning active subscription
+- [x] `GET /v1/customers/:id/payment-methods` lists all methods for customer
+- [x] `PATCH /v1/customers/:id/payment-methods/:pmId/primary` promotes to primary (demotes old primary)
+- [x] `PATCH /v1/customers/:id/payment-methods/:pmId/backup` designates backup
+- [x] `DELETE /v1/customers/:id/payment-methods/:pmId` soft-removes; guards against orphaning active subscription
 
 **Test Requirements:**
-- [ ] Integration test: promote primary → old primary demoted atomically; removal guard fires correctly
+- [x] Integration test: promote primary → old primary demoted atomically; removal guard fires correctly
 
 **Estimated Time:** 1 hour
 
@@ -582,14 +582,14 @@ Implement endpoints for listing, designating primary/backup, and removing paymen
 Build `src/lib/nomba-client.ts` — a typed HTTP client factory that accepts tenant Nomba credentials and constructs a client pointed at either the sandbox or production Nomba base URL based on tenant mode. All requests include auth headers and retry on 429 with exponential backoff.
 
 **Acceptance Criteria:**
-- [ ] `createNombaClient(tenant)` returns a typed client instance
-- [ ] Base URL switches: `api.nomba.com` (live) vs `sandbox.nomba.com` (test)
-- [ ] All requests attach `Authorization` and `accountId` headers
-- [ ] 429 responses trigger 2 retries with exponential backoff before throwing
-- [ ] Request/response pairs logged at `debug` level with request ID
+- [x] `createNombaClient(tenant)` returns a typed client instance
+- [x] Base URL switches: `api.nomba.com` (live) vs `sandbox.nomba.com` (test)
+- [x] All requests attach `Authorization` and `accountId` headers
+- [x] 429 responses trigger 2 retries with exponential backoff before throwing
+- [x] Request/response pairs logged at `debug` level with request ID
 
 **Test Requirements:**
-- [ ] Unit test with mocked fetch: auth headers present; sandbox URL used in test mode
+- [x] Unit test with mocked fetch: auth headers present; sandbox URL used in test mode
 
 **Estimated Time:** 1 hour
 
@@ -605,13 +605,13 @@ Build `src/lib/nomba-client.ts` — a typed HTTP client factory that accepts ten
 Implement `createCheckoutSession(client, params)` that calls Nomba's checkout API, requesting card tokenisation on success. Returns a checkout URL for redirect-based card capture. Used during subscription creation to collect the first payment method.
 
 **Acceptance Criteria:**
-- [ ] Calls correct Nomba checkout endpoint with amount, currency, customer reference, and `tokenize: true`
-- [ ] Returns `{ checkoutUrl, reference }` on success
-- [ ] Nomba API errors mapped to typed `NombaCheckoutError` with original code preserved
-- [ ] Reference stored in a `pending_checkouts` table for callback correlation
+- [x] Calls correct Nomba checkout endpoint with amount, currency, customer reference, and `tokenize: true`
+- [x] Returns `{ checkoutUrl, reference }` on success
+- [x] Nomba API errors mapped to typed `NombaCheckoutError` with original code preserved
+- [x] Reference stored in a `pending_checkouts` table for callback correlation
 
 **Test Requirements:**
-- [ ] Unit test: mocked Nomba response → checkout URL returned; error → typed error thrown
+- [x] Unit test: mocked Nomba response → checkout URL returned; error → typed error thrown
 
 **Estimated Time:** 1 hour
 
@@ -650,15 +650,15 @@ Implement the handler that processes Nomba's post-checkout callback, extracts th
 Implement `chargeCard(client, token, amount, currency, idempotencyKey)` wrapping Nomba's tokenised card charge endpoint. Maps all Nomba failure codes to a typed error taxonomy (`InsufficientFundsError`, `CardDeclinedError`, `NetworkError`, etc.) used throughout the billing engine.
 
 **Acceptance Criteria:**
-- [ ] Sends idempotency key header to prevent double charges
-- [ ] Returns `{ chargeId, status, amount, currency }` on success
-- [ ] All documented Nomba error codes mapped to specific typed errors
-- [ ] Unknown errors wrapped as `NombaUnknownError` with raw code preserved
-- [ ] Charge attempt logged with full request/response at `info` level
+- [x] Sends idempotency key header to prevent double charges
+- [x] Returns `{ chargeId, status, amount, currency }` on success
+- [x] All documented Nomba error codes mapped to specific typed errors
+- [x] Unknown errors wrapped as `NombaUnknownError` with raw code preserved
+- [x] Charge attempt logged with full request/response at `info` level
 
 **Test Requirements:**
-- [ ] Unit tests for each error mapping path
-- [ ] Unit test: idempotency key present in request headers
+- [x] Unit tests for each error mapping path
+- [x] Unit test: idempotency key present in request headers
 
 **Estimated Time:** 1 hour
 
@@ -674,13 +674,13 @@ Implement `chargeCard(client, token, amount, currency, idempotencyKey)` wrapping
 Implement `refundCharge(client, chargeId, amount, reason)` for partial and full refunds. Used by the proration engine when issuing cancellation credits. Idempotent via a stored refund reference; duplicate calls return the existing refund record.
 
 **Acceptance Criteria:**
-- [ ] Calls Nomba refund endpoint with charge ID, amount, and reason
-- [ ] Partial refund supported (amount < original charge)
-- [ ] Refund record persisted in `refunds` table with status
-- [ ] Duplicate refund attempt for same charge + amount → returns existing record (idempotent)
+- [x] Calls Nomba refund endpoint with charge ID, amount, and reason
+- [x] Partial refund supported (amount < original charge)
+- [x] Refund record persisted in `refunds` table with status
+- [x] Duplicate refund attempt for same charge + amount → returns existing record (idempotent)
 
 **Test Requirements:**
-- [ ] Unit test: mocked success → refund record returned; duplicate → idempotent
+- [x] Unit test: mocked success → refund record returned; duplicate → idempotent
 
 **Estimated Time:** 1 hour
 
@@ -700,12 +700,12 @@ Implement `refundCharge(client, chargeId, amount, reason)` for partial and full 
 Create the `subscriptions` migration. Stores all lifecycle state, plan reference, billing dates, coupon link, proration credit balance, and cancellation metadata. The state column is an enum representing the formal state machine states.
 
 **Acceptance Criteria:**
-- [ ] `subscriptions` table: id, tenant_id, customer_id, plan_id, status (enum), currency, current_period_start, current_period_end, cancel_at_period_end, cancelled_at, paused_at, coupon_id (nullable), proration_credit (integer, default 0), created_at, updated_at
-- [ ] Status enum: `incomplete | active | past_due | paused | cancelled`
-- [ ] Index on `(tenant_id, status)` for billing scheduler queries
+- [x] `subscriptions` table: id, tenant_id, customer_id, plan_id, status (enum), currency, current_period_start, current_period_end, cancel_at_period_end, cancelled_at, paused_at, coupon_id (nullable), proration_credit (integer, default 0), created_at, updated_at
+- [x] Status enum: `incomplete | active | past_due | paused | cancelled`
+- [x] Index on `(tenant_id, status)` for billing scheduler queries
 
 **Test Requirements:**
-- [ ] Migration applies and rolls back cleanly
+- [x] Migration applies and rolls back cleanly
 
 **Estimated Time:** 0.5 hours
 
@@ -721,13 +721,13 @@ Create the `subscriptions` migration. Stores all lifecycle state, plan reference
 Implement a formal state machine in `src/lib/subscription-fsm.ts` that defines valid state transitions and guards. All status changes must go through the FSM — no direct SQL updates. This enforces lifecycle correctness and makes illegal states unrepresentable.
 
 **Acceptance Criteria:**
-- [ ] Valid transitions: `incomplete→active`, `active→past_due`, `active→paused`, `active→cancelled`, `past_due→active`, `past_due→cancelled`, `paused→active`, `paused→cancelled`
-- [ ] Invalid transitions throw `InvalidTransitionError` with `from` and `to` states
-- [ ] `transition(subscription, event, payload?)` returns the new subscription record
-- [ ] All transitions write an audit entry to `subscription_events` table
+- [x] Valid transitions: `incomplete→active`, `active→past_due`, `active→paused`, `active→cancelled`, `past_due→active`, `past_due→cancelled`, `paused→active`, `paused→cancelled`
+- [x] Invalid transitions throw `InvalidTransitionError` with `from` and `to` states
+- [x] `transition(subscription, event, payload?)` returns the new subscription record
+- [x] All transitions write an audit entry to `subscription_events` table
 
 **Test Requirements:**
-- [ ] Unit tests: every valid transition; every invalid transition throws
+- [x] Unit tests: every valid transition; every invalid transition throws
 
 **Estimated Time:** 1.5 hours
 
@@ -743,14 +743,14 @@ Implement a formal state machine in `src/lib/subscription-fsm.ts` that defines v
 Implement `POST /v1/subscriptions`. If customer has a saved payment method, attempts immediate charge and activates subscription on success. If no payment method, creates a checkout session and returns the URL; subscription stays `incomplete` until card captured. Coupon validated and linked at creation time.
 
 **Acceptance Criteria:**
-- [ ] Zod schema validates: customer_id, plan_id, currency, optional coupon_code
-- [ ] Saved card path: charge attempted → success → `active`; failure → `incomplete` with error
-- [ ] Checkout path: checkout session URL returned; subscription in `incomplete`
-- [ ] Coupon validated via #RCV-019 before subscription record created
-- [ ] Idempotency key accepted via header to prevent duplicate subscriptions
+- [x] Zod schema validates: customer_id, plan_id, currency, optional coupon_code
+- [x] Saved card path: charge attempted → success → `active`; failure → `incomplete` with error
+- [x] Checkout path: checkout session URL returned; subscription in `incomplete`
+- [x] Coupon validated via #RCV-019 before subscription record created
+- [x] Idempotency key accepted via header to prevent duplicate subscriptions
 
 **Test Requirements:**
-- [ ] Integration test: saved card success flow; saved card failure flow; checkout URL flow
+- [x] Integration test: saved card success flow; saved card failure flow; checkout URL flow
 
 **Estimated Time:** 2 hours
 
@@ -766,13 +766,13 @@ Implement `POST /v1/subscriptions`. If customer has a saved payment method, atte
 Implement retrieval endpoints: `GET /v1/subscriptions/:id`, `GET /v1/subscriptions` (tenant list), and `GET /v1/customers/:id/subscriptions` (customer-scoped list). All are tenant-scoped. List endpoints support status filter and pagination.
 
 **Acceptance Criteria:**
-- [ ] `GET /v1/subscriptions/:id` returns full subscription with plan and customer info; 404 for wrong tenant
-- [ ] `GET /v1/subscriptions?status=active` filters by status
-- [ ] `GET /v1/customers/:id/subscriptions` returns all subscriptions for a customer
-- [ ] All lists paginated (limit/offset); default limit 20, max 100
+- [x] `GET /v1/subscriptions/:id` returns full subscription with plan and customer info; 404 for wrong tenant
+- [x] `GET /v1/subscriptions?status=active` filters by status
+- [x] `GET /v1/customers/:id/subscriptions` returns all subscriptions for a customer
+- [x] All lists paginated (limit/offset); default limit 20, max 100
 
 **Test Requirements:**
-- [ ] Integration test: cross-tenant isolation; status filter returns correct subset
+- [x] Integration test: cross-tenant isolation; status filter returns correct subset
 
 **Estimated Time:** 0.5 hours
 
@@ -788,13 +788,13 @@ Implement retrieval endpoints: `GET /v1/subscriptions/:id`, `GET /v1/subscriptio
 Implement `POST /v1/subscriptions/:id/pause` and `POST /v1/subscriptions/:id/resume`. Pause freezes the billing period; resume re-activates and adjusts the next billing date based on time paused. Only `active` subscriptions can be paused; only `paused` subscriptions can be resumed.
 
 **Acceptance Criteria:**
-- [ ] Pause: `paused_at` recorded; billing period frozen; state → `paused`
-- [ ] Resume: `current_period_end` extended by pause duration; state → `active`
-- [ ] Pausing an already-paused subscription → 422
-- [ ] Pause/resume events written to `subscription_events`
+- [x] Pause: `paused_at` recorded; billing period frozen; state → `paused`
+- [x] Resume: `current_period_end` extended by pause duration; state → `active`
+- [x] Pausing an already-paused subscription → 422
+- [x] Pause/resume events written to `subscription_events`
 
 **Test Requirements:**
-- [ ] Integration test: pause then resume; verify billing dates adjusted correctly
+- [x] Integration test: pause then resume; verify billing dates adjusted correctly
 
 **Estimated Time:** 1 hour
 
@@ -810,13 +810,13 @@ Implement `POST /v1/subscriptions/:id/pause` and `POST /v1/subscriptions/:id/res
 Implement `POST /v1/subscriptions/:id/cancel` with a `cancel_at_period_end` boolean. Immediate cancellation triggers proration credit calculation and optional refund. End-of-period sets the flag; billing engine respects it at next cycle cutoff.
 
 **Acceptance Criteria:**
-- [ ] Immediate cancel: `cancelled_at = NOW()`; state → `cancelled`; proration credit computed
-- [ ] End-of-period cancel: `cancel_at_period_end = true`; subscription remains `active` until period end
-- [ ] Cancellation reason (string) accepted and stored
-- [ ] Customer notified via outbound webhook event `subscription.cancelled`
+- [x] Immediate cancel: `cancelled_at = NOW()`; state → `cancelled`; proration credit computed
+- [x] End-of-period cancel: `cancel_at_period_end = true`; subscription remains `active` until period end
+- [x] Cancellation reason (string) accepted and stored
+- [x] Customer notified via outbound webhook event `subscription.cancelled`
 
 **Test Requirements:**
-- [ ] Integration test: immediate cancel → state cancelled, credit computed; end-of-period → still active
+- [x] Integration test: immediate cancel → state cancelled, credit computed; end-of-period → still active
 
 **Estimated Time:** 1 hour
 
@@ -832,14 +832,14 @@ Implement `POST /v1/subscriptions/:id/cancel` with a `cancel_at_period_end` bool
 Implement `POST /v1/subscriptions/:id/change-plan` that switches a subscription to a new plan mid-cycle. Calculates proration (upgrade or downgrade), generates a proration invoice, and updates the subscription. Uses the proration engine from Epic 9.
 
 **Acceptance Criteria:**
-- [ ] Request accepts `new_plan_id` and optional `immediate: boolean`
-- [ ] Proration invoice generated with credit and debit line items
-- [ ] Subscription `plan_id` and `current_period_*` updated atomically
-- [ ] Cannot change to an archived plan → 422
-- [ ] Change event written to `subscription_events`
+- [x] Request accepts `new_plan_id` and optional `immediate: boolean`
+- [x] Proration invoice generated with credit and debit line items
+- [x] Subscription `plan_id` and `current_period_*` updated atomically
+- [x] Cannot change to an archived plan → 422
+- [x] Change event written to `subscription_events`
 
 **Test Requirements:**
-- [ ] Integration test: upgrade mid-cycle → proration invoice with correct amounts
+- [x] Integration test: upgrade mid-cycle → proration invoice with correct amounts
 
 **Estimated Time:** 1 hour
 
@@ -859,15 +859,15 @@ Implement `POST /v1/subscriptions/:id/change-plan` that switches a subscription 
 Implement `src/lib/proration.ts` with pure functions for upgrade, downgrade, and cancellation proration. All calculations work in integer minor units (kobo/cents) using integer arithmetic to avoid floating-point errors. Functions are fully testable without DB access.
 
 **Acceptance Criteria:**
-- [ ] `calculateUpgradeProration(oldPlan, newPlan, daysRemaining, daysInPeriod, currency)` → credit + charge amounts
-- [ ] `calculateDowngradeProration(...)` → credit amount (no immediate charge for downgrades)
-- [ ] `calculateCancellationCredit(plan, daysRemaining, daysInPeriod, currency)` → credit amount
-- [ ] All arithmetic uses integer division; no `Math.round` on money
-- [ ] Edge case: daysRemaining = 0 → zero proration
+- [x] `calculateUpgradeProration(oldPlan, newPlan, daysRemaining, daysInPeriod, currency)` → credit + charge amounts
+- [x] `calculateDowngradeProration(...)` → credit amount (no immediate charge for downgrades)
+- [x] `calculateCancellationCredit(plan, daysRemaining, daysInPeriod, currency)` → credit amount
+- [x] All arithmetic uses integer division; no `Math.round` on money
+- [x] Edge case: daysRemaining = 0 → zero proration
 
 **Test Requirements:**
-- [ ] Unit tests: upgrade midpoint, upgrade last day, downgrade, cancellation, zero-day edge cases
-- [ ] Property test: credit never exceeds full period amount
+- [x] Unit tests: upgrade midpoint, upgrade last day, downgrade, cancellation, zero-day edge cases
+- [x] Property test: credit never exceeds full period amount
 
 **Estimated Time:** 1.5 hours
 
@@ -883,13 +883,13 @@ Implement `src/lib/proration.ts` with pure functions for upgrade, downgrade, and
 Implement `buildProrationLineItems(prorationResult, oldPlan, newPlan)` that converts proration calculation output into structured invoice line items. These are attached to a proration invoice (type `proration`) generated by the billing engine.
 
 **Acceptance Criteria:**
-- [ ] Line item types: `credit` (remaining time on old plan) and `charge` (remaining time on new plan)
-- [ ] Descriptions human-readable: "Unused time on [PlanName] (N days)"
-- [ ] Line items sum to net proration amount
-- [ ] Currency consistent across all line items
+- [x] Line item types: `credit` (remaining time on old plan) and `charge` (remaining time on new plan)
+- [x] Descriptions human-readable: "Unused time on [PlanName] (N days)"
+- [x] Line items sum to net proration amount
+- [x] Currency consistent across all line items
 
 **Test Requirements:**
-- [ ] Unit tests: upgrade generates credit + charge; downgrade generates credit only
+- [x] Unit tests: upgrade generates credit + charge; downgrade generates credit only
 
 **Estimated Time:** 0.5 hours
 
@@ -931,12 +931,12 @@ Extend the proration library to correctly handle annual billing interval plans, 
 Create the `invoices` and `invoice_line_items` migrations. Invoices are the financial record of every billing attempt. Line items detail the charges, credits, and discounts. Status tracks the full lifecycle from draft through paid or void.
 
 **Acceptance Criteria:**
-- [ ] `invoices` table: id, tenant_id, customer_id, subscription_id, type (`recurring|proration|metered`), status (`draft|open|paid|void|uncollectable`), currency, subtotal, discount_amount, tax_amount, total, period_start, period_end, paid_at, created_at
-- [ ] `invoice_line_items` table: id, invoice_id, description, amount, quantity, unit_amount, type (`charge|credit|discount|tax`)
-- [ ] Index on `(subscription_id, status)`
+- [x] `invoices` table: id, tenant_id, customer_id, subscription_id, type (`recurring|proration|metered`), status (`draft|open|paid|void|uncollectable`), currency, subtotal, discount_amount, tax_amount, total, period_start, period_end, paid_at, created_at
+- [x] `invoice_line_items` table: id, invoice_id, description, amount, quantity, unit_amount, type (`charge|credit|discount|tax`)
+- [x] Index on `(subscription_id, status)`
 
 **Test Requirements:**
-- [ ] Migration applies and rolls back cleanly
+- [x] Migration applies and rolls back cleanly
 
 **Estimated Time:** 0.5 hours
 
@@ -952,14 +952,14 @@ Create the `invoices` and `invoice_line_items` migrations. Invoices are the fina
 Implement `generateInvoice(subscription, period)` that builds a complete invoice for a billing period: fetches plan pricing in the correct currency, applies metered usage totals, attaches coupon discounts, and persists the draft invoice. Separates generation from charge execution.
 
 **Acceptance Criteria:**
-- [ ] Fixed plan: single line item at plan's currency unit_amount
-- [ ] Metered plan: line item with aggregated usage units × unit_amount
-- [ ] Coupon applied if subscription has active coupon; coupon state updated
-- [ ] Invoice created in `draft` status; moved to `open` when ready to charge
-- [ ] Idempotent: same subscription + period → same invoice record (no duplicates)
+- [x] Fixed plan: single line item at plan's currency unit_amount
+- [x] Metered plan: line item with aggregated usage units × unit_amount
+- [x] Coupon applied if subscription has active coupon; coupon state updated
+- [x] Invoice created in `draft` status; moved to `open` when ready to charge
+- [x] Idempotent: same subscription + period → same invoice record (no duplicates)
 
 **Test Requirements:**
-- [ ] Unit tests: fixed plan, metered plan, coupon once, coupon repeating, coupon expired
+- [x] Unit tests: fixed plan, metered plan, coupon once, coupon repeating, coupon expired
 
 **Estimated Time:** 2 hours
 
@@ -975,14 +975,14 @@ Implement `generateInvoice(subscription, period)` that builds a complete invoice
 Implement `executeInvoiceCharge(invoice, paymentMethod)` that calls the Nomba charge wrapper, updates invoice status to `paid` or triggers dunning on failure, and records the charge attempt. Currency on the invoice must match the card's currency capability.
 
 **Acceptance Criteria:**
-- [ ] Charge amount taken from `invoice.total`; currency from `invoice.currency`
-- [ ] Success: invoice → `paid`; `paid_at` recorded; `charge_records` entry created
-- [ ] Failure: invoice remains `open`; dunning engine notified via event
-- [ ] Idempotency key = `invoice.id` to prevent double charges on retry
-- [ ] Outbound webhook `invoice.paid` fired on success
+- [x] Charge amount taken from `invoice.total`; currency from `invoice.currency`
+- [x] Success: invoice → `paid`; `paid_at` recorded; `charge_records` entry created
+- [x] Failure: invoice remains `open`; dunning engine notified via event
+- [x] Idempotency key = `invoice.id` to prevent double charges on retry
+- [x] Outbound webhook `invoice.paid` fired on success
 
 **Test Requirements:**
-- [ ] Integration test: charge success → invoice paid; charge failure → dunning triggered
+- [x] Integration test: charge success → invoice paid; charge failure → dunning triggered
 
 **Estimated Time:** 1.5 hours
 
@@ -1025,14 +1025,14 @@ Implement a cron-like scheduler (`src/jobs/billing-scheduler.ts`) that runs dail
 Create the `usage_records` table and implement `POST /v1/subscriptions/:id/usage` for tenants to report usage events. Accepts quantity, timestamp, and an idempotency key. Only valid for subscriptions on metered plans.
 
 **Acceptance Criteria:**
-- [ ] `usage_records` table: id, subscription_id, tenant_id, quantity (numeric), timestamp, idempotency_key, billing_period_start, created_at
-- [ ] Unique index on `(subscription_id, idempotency_key)`
-- [ ] Posting to a non-metered subscription → 422
-- [ ] Duplicate idempotency key → 200 with existing record (no duplicate insert)
-- [ ] Usage timestamped with event time (not server receive time)
+- [x] `usage_records` table: id, subscription_id, tenant_id, quantity (numeric), timestamp, idempotency_key, billing_period_start, created_at
+- [x] Unique index on `(subscription_id, idempotency_key)`
+- [x] Posting to a non-metered subscription → 422
+- [x] Duplicate idempotency key → 200 with existing record (no duplicate insert)
+- [x] Usage timestamped with event time (not server receive time)
 
 **Test Requirements:**
-- [ ] Integration test: ingest usage; duplicate idempotency key idempotent; non-metered plan → 422
+- [x] Integration test: ingest usage; duplicate idempotency key idempotent; non-metered plan → 422
 
 **Estimated Time:** 1 hour
 
@@ -1048,14 +1048,14 @@ Create the `usage_records` table and implement `POST /v1/subscriptions/:id/usage
 Implement `aggregateUsage(subscriptionId, periodStart, periodEnd)` that queries `usage_records` within the billing period and applies the plan's aggregate function (`sum`, `max`, or `last`). Result is the billable quantity used by invoice generation.
 
 **Acceptance Criteria:**
-- [ ] `sum`: total of all quantities in period
-- [ ] `max`: highest single quantity record in period
-- [ ] `last`: quantity from the most recent record in period
-- [ ] Zero records in period → 0 quantity (no error)
-- [ ] Late usage (timestamp before period but inserted after) excluded based on timestamp, not `created_at`
+- [x] `sum`: total of all quantities in period
+- [x] `max`: highest single quantity record in period
+- [x] `last`: quantity from the most recent record in period
+- [x] Zero records in period → 0 quantity (no error)
+- [x] Late usage (timestamp before period but inserted after) excluded based on timestamp, not `created_at`
 
 **Test Requirements:**
-- [ ] Unit tests for sum, max, last; zero records; late usage exclusion
+- [x] Unit tests for sum, max, last; zero records; late usage exclusion
 
 **Estimated Time:** 1 hour
 
@@ -1071,13 +1071,13 @@ Implement `aggregateUsage(subscriptionId, periodStart, periodEnd)` that queries 
 Implement `GET /v1/subscriptions/:id/usage` that returns aggregated usage for the current and previous billing periods, plus a list of individual usage records. Allows tenants to display usage dashboards to their own customers.
 
 **Acceptance Criteria:**
-- [ ] Returns: `{ currentPeriod: { start, end, quantity }, previousPeriod: { ... }, records: [...] }`
-- [ ] Records paginated; default 50 per page
-- [ ] Only accessible by subscription's owning tenant
-- [ ] Graceful response when no usage records exist
+- [x] Returns: `{ currentPeriod: { start, end, quantity }, previousPeriod: { ... }, records: [...] }`
+- [x] Records paginated; default 50 per page
+- [x] Only accessible by subscription's owning tenant
+- [x] Graceful response when no usage records exist
 
 **Test Requirements:**
-- [ ] Integration test: records inserted across two periods; verify correct period aggregation
+- [x] Integration test: records inserted across two periods; verify correct period aggregation
 
 **Estimated Time:** 0.5 hours
 
@@ -1097,12 +1097,12 @@ Implement `GET /v1/subscriptions/:id/usage` that returns aggregated usage for th
 Create the `dunning_policies` and `dunning_attempts` migrations. `dunning_policies` holds per-tenant configuration: retry schedule (days array), max attempts, final action. A default policy is seeded for new tenants respecting Nigerian salary cycle timing.
 
 **Acceptance Criteria:**
-- [ ] `dunning_policies` table: id, tenant_id (FK, unique), retry_days (integer[]), max_attempts, final_action (`cancel|suspend`), use_backup_on_first_failure (bool), created_at, updated_at
-- [ ] Default policy seeded: retry_days `[1, 3, 7, 14]` (salary-cycle-aware), max_attempts 4, use_backup_on_first_failure true
-- [ ] `dunning_attempts` table: id, subscription_id, invoice_id, attempt_number, scheduled_at, attempted_at, result, payment_method_id, created_at
+- [x] `dunning_policies` table: id, tenant_id (FK, unique), retry_days (integer[]), max_attempts, final_action (`cancel|suspend`), use_backup_on_first_failure (bool), created_at, updated_at
+- [x] Default policy seeded: retry_days `[1, 3, 7, 14]` (salary-cycle-aware), max_attempts 4, use_backup_on_first_failure true
+- [x] `dunning_attempts` table: id, subscription_id, invoice_id, attempt_number, scheduled_at, attempted_at, result, payment_method_id, created_at
 
 **Test Requirements:**
-- [ ] Migration applies; default policy inserted for new tenant
+- [x] Migration applies; default policy inserted for new tenant
 
 **Estimated Time:** 0.5 hours
 
@@ -1118,14 +1118,14 @@ Create the `dunning_policies` and `dunning_attempts` migrations. `dunning_polici
 Implement `scheduleDunningAttempts(subscription, invoice, policy)` that generates retry `scheduled_at` timestamps based on the policy's `retry_days` offsets, but adjusts dates that fall between the 24th–27th of the month (Nigerian salary period) to retry on the 28th instead, maximising recovery probability.
 
 **Acceptance Criteria:**
-- [ ] Base retry times computed from charge failure time + `retry_days[n]` days
-- [ ] Any `scheduled_at` between 24th–27th (inclusive) of any month bumped to 28th at 09:00 WAT
-- [ ] If 28th already passed, bumped to next occurrence of 28th
-- [ ] Generated attempts persisted in `dunning_attempts` with status `scheduled`
-- [ ] Function returns array of scheduled attempt records
+- [x] Base retry times computed from charge failure time + `retry_days[n]` days
+- [x] Any `scheduled_at` between 24th–27th (inclusive) of any month bumped to 28th at 09:00 WAT
+- [x] If 28th already passed, bumped to next occurrence of 28th
+- [x] Generated attempts persisted in `dunning_attempts` with status `scheduled`
+- [x] Function returns array of scheduled attempt records
 
 **Test Requirements:**
-- [ ] Unit tests: failure on 20th → retry on 21st, 23rd, 27th→28th, 3rd of next month; failure on 25th → first retry on 28th
+- [x] Unit tests: failure on 20th → retry on 21st, 23rd, 27th→28th, 3rd of next month; failure on 25th → first retry on 28th
 
 **Estimated Time:** 1.5 hours
 
@@ -1141,14 +1141,14 @@ Implement `scheduleDunningAttempts(subscription, invoice, policy)` that generate
 When `use_backup_on_first_failure = true` and the first charge attempt fails, the dunning engine should immediately attempt the backup card (if one exists) before scheduling the standard retry sequence. A successful backup charge resolves the invoice and cancels the dunning schedule.
 
 **Acceptance Criteria:**
-- [ ] On first charge failure: query backup card for customer
-- [ ] If backup exists: attempt charge immediately; success → invoice paid, dunning cancelled
-- [ ] If backup charge fails: schedule standard retry sequence as normal
-- [ ] If no backup card: proceed directly to scheduled retries
-- [ ] Backup attempt recorded in `dunning_attempts` with `payment_method_id` of backup card
+- [x] On first charge failure: query backup card for customer
+- [x] If backup exists: attempt charge immediately; success → invoice paid, dunning cancelled
+- [x] If backup charge fails: schedule standard retry sequence as normal
+- [x] If no backup card: proceed directly to scheduled retries
+- [x] Backup attempt recorded in `dunning_attempts` with `payment_method_id` of backup card
 
 **Test Requirements:**
-- [ ] Integration test: primary fails → backup attempted; backup success → invoice paid; backup fail → retries scheduled
+- [x] Integration test: primary fails → backup attempted; backup success → invoice paid; backup fail → retries scheduled
 
 **Estimated Time:** 1.5 hours
 
@@ -1188,14 +1188,14 @@ Implement the dunning job worker that runs every hour, queries `dunning_attempts
 When a customer in `past_due` status updates their payment method (adds a new card or updates existing), trigger an immediate retry of the outstanding invoice. This "self-cure" flow recovers subscribers without waiting for the next scheduled dunning attempt.
 
 **Acceptance Criteria:**
-- [ ] Hook fires when a `payment_method` record is created or updated for a customer with `past_due` subscription
-- [ ] Outstanding invoice charge attempted with the new/updated card immediately
-- [ ] On success: subscription → `active`; dunning schedule cancelled
-- [ ] On failure: dunning schedule continues from current position
-- [ ] Self-cure event logged in `dunning_attempts` with type `self_cure`
+- [x] Hook fires when a `payment_method` record is created or updated for a customer with `past_due` subscription
+- [x] Outstanding invoice charge attempted with the new/updated card immediately
+- [x] On success: subscription → `active`; dunning schedule cancelled
+- [x] On failure: dunning schedule continues from current position
+- [x] Self-cure event logged in `dunning_attempts` with type `self_cure`
 
 **Test Requirements:**
-- [ ] Integration test: customer past_due → adds card → charge attempted immediately
+- [x] Integration test: customer past_due → adds card → charge attempted immediately
 
 **Estimated Time:** 1 hour
 
@@ -1211,13 +1211,13 @@ When a customer in `past_due` status updates their payment method (adds a new ca
 Implement `GET` and `PATCH /v1/dunning/policy` allowing tenants to customise their dunning policy. Validates that `retry_days` is a sorted array of 1–30 integers with no duplicates, and max_attempts matches the length of retry_days.
 
 **Acceptance Criteria:**
-- [ ] `GET /v1/dunning/policy` returns current policy (creates default if none exists)
-- [ ] `PATCH /v1/dunning/policy` validates and updates retry_days, max_attempts, final_action, use_backup_on_first_failure
-- [ ] `retry_days` must be sorted, unique, integers 1–30, max 6 elements
-- [ ] Changes apply to new dunning schedules only; in-flight schedules unaffected
+- [x] `GET /v1/dunning/policy` returns current policy (creates default if none exists)
+- [x] `PATCH /v1/dunning/policy` validates and updates retry_days, max_attempts, final_action, use_backup_on_first_failure
+- [x] `retry_days` must be sorted, unique, integers 1–30, max 6 elements
+- [x] Changes apply to new dunning schedules only; in-flight schedules unaffected
 
 **Test Requirements:**
-- [ ] Unit test: unsorted retry_days → 422; duplicate days → 422; valid payload → persisted
+- [x] Unit test: unsorted retry_days → 422; duplicate days → 422; valid payload → persisted
 
 **Estimated Time:** 0.5 hours
 

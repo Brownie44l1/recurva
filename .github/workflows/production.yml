@@ -69,6 +69,20 @@ jobs:
       - name: Build
         run: bun run build
 
+      - name: Validate secrets
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          if [ -z "$PROD_HOST" ]; then
+            echo "::error::PROD_HOST secret is not set — add it in GitHub repo settings"
+            exit 1
+          fi
+          if [ -z "$SSH_PRIVATE_KEY" ]; then
+            echo "::error::SSH_PRIVATE_KEY secret is not set"
+            exit 1
+          fi
+
       - name: Deploy to production server
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -79,6 +93,6 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           rsync -avz --exclude node_modules --exclude .env --exclude .git \
             -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
-            ./ ubuntu@$PROD_HOST:/opt/recurva/
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ubuntu@$PROD_HOST \
+            ./ "ubuntu@${PROD_HOST}:/opt/recurva/"
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "ubuntu@${PROD_HOST}" \
             "cd /opt/recurva && docker compose up -d --build"
