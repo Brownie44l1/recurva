@@ -1,0 +1,629 @@
+{
+  "info": {
+    "name": "Recurva API",
+    "description": "Subscription billing API. All /v1/* endpoints require an API key (Bearer token) unless noted.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "recurva"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "api_key", "value": "rcv_live_your_key_here" },
+    { "key": "dashboard_token", "value": "" },
+    { "key": "portal_token", "value": "" },
+    { "key": "customer_id", "value": "" },
+    { "key": "plan_id", "value": "" },
+    { "key": "subscription_id", "value": "" },
+    { "key": "invoice_id", "value": "" },
+    { "key": "endpoint_id", "value": "" },
+    { "key": "coupon_id", "value": "" },
+    { "key": "payment_method_id", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{api_key}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));"],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/health", "host": ["{{base_url}}"], "path": ["health"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tenants",
+      "item": [
+        {
+          "name": "Register Tenant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('api_key', json.apiKey);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My Company\",\n  \"email\": \"admin@company.com\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/v1/tenants/register", "host": ["{{base_url}}"], "path": ["v1", "tenants", "register"] }
+          }
+        },
+        {
+          "name": "Get Tenant Profile",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/tenants/me", "host": ["{{base_url}}"], "path": ["v1", "tenants", "me"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Plans",
+      "item": [
+        {
+          "name": "Create Plan",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('plan_id', json.plan.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Professional\",\n  \"description\": \"Monthly plan\",\n  \"billingType\": \"fixed\",\n  \"interval\": \"month\",\n  \"intervalCount\": 1,\n  \"prices\": [\n    { \"currency\": \"NGN\", \"amount\": 500000 }\n  ]\n}"
+            },
+            "url": { "raw": "{{base_url}}/v1/plans", "host": ["{{base_url}}"], "path": ["v1", "plans"] }
+          }
+        },
+        {
+          "name": "List Plans",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/plans", "host": ["{{base_url}}"], "path": ["v1", "plans"] }
+          }
+        },
+        {
+          "name": "Get Plan",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/plans/{{plan_id}}", "host": ["{{base_url}}"], "path": ["v1", "plans", "{{plan_id}}"] }
+          }
+        },
+        {
+          "name": "Update Plan",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Professional Plus\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/v1/plans/{{plan_id}}", "host": ["{{base_url}}"], "path": ["v1", "plans", "{{plan_id}}"] }
+          }
+        },
+        {
+          "name": "Archive Plan",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{base_url}}/v1/plans/{{plan_id}}", "host": ["{{base_url}}"], "path": ["v1", "plans", "{{plan_id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Coupons",
+      "item": [
+        {
+          "name": "Create Coupon",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('coupon_id', json.coupon.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"SAVE20\",\n  \"discountType\": \"percentage\",\n  \"discountValue\": 20,\n  \"duration\": \"once\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/v1/coupons", "host": ["{{base_url}}"], "path": ["v1", "coupons"] }
+          }
+        },
+        {
+          "name": "Validate Coupon",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"SAVE20\",\n  \"currency\": \"NGN\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/v1/coupons/validate", "host": ["{{base_url}}"], "path": ["v1", "coupons", "validate"] }
+          }
+        },
+        {
+          "name": "List Coupons",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/coupons", "host": ["{{base_url}}"], "path": ["v1", "coupons"] }
+          }
+        },
+        {
+          "name": "Archive Coupon",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{base_url}}/v1/coupons/{{coupon_id}}", "host": ["{{base_url}}"], "path": ["v1", "coupons", "{{coupon_id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Customers",
+      "item": [
+        {
+          "name": "Create Customer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('customer_id', json.customer.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"name\": \"John Doe\",\n  \"currency\": \"NGN\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/v1/customers", "host": ["{{base_url}}"], "path": ["v1", "customers"] }
+          }
+        },
+        {
+          "name": "List Customers",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/customers", "host": ["{{base_url}}"], "path": ["v1", "customers"] }
+          }
+        },
+        {
+          "name": "Get Customer",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/customers/{{customer_id}}", "host": ["{{base_url}}"], "path": ["v1", "customers", "{{customer_id}}"] }
+          }
+        },
+        {
+          "name": "Update Customer",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Jane Doe\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/v1/customers/{{customer_id}}", "host": ["{{base_url}}"], "path": ["v1", "customers", "{{customer_id}}"] }
+          }
+        },
+        {
+          "name": "Delete Customer",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{base_url}}/v1/customers/{{customer_id}}", "host": ["{{base_url}}"], "path": ["v1", "customers", "{{customer_id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Subscriptions",
+      "item": [
+        {
+          "name": "Create Subscription",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('subscription_id', json.subscription.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customer_id}}\",\n  \"planId\": \"{{plan_id}}\",\n  \"currency\": \"NGN\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/v1/subscriptions", "host": ["{{base_url}}"], "path": ["v1", "subscriptions"] }
+          }
+        },
+        {
+          "name": "List Subscriptions",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/subscriptions", "host": ["{{base_url}}"], "path": ["v1", "subscriptions"] }
+          }
+        },
+        {
+          "name": "Get Subscription",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/subscriptions/{{subscription_id}}", "host": ["{{base_url}}"], "path": ["v1", "subscriptions", "{{subscription_id}}"] }
+          }
+        },
+        {
+          "name": "Cancel Subscription",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cancelAtPeriodEnd\": false\n}"
+            },
+            "url": { "raw": "{{base_url}}/v1/subscriptions/{{subscription_id}}/cancel", "host": ["{{base_url}}"], "path": ["v1", "subscriptions", "{{subscription_id}}", "cancel"] }
+          }
+        },
+        {
+          "name": "Pause Subscription",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/v1/subscriptions/{{subscription_id}}/pause", "host": ["{{base_url}}"], "path": ["v1", "subscriptions", "{{subscription_id}}", "pause"] }
+          }
+        },
+        {
+          "name": "Resume Subscription",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/v1/subscriptions/{{subscription_id}}/resume", "host": ["{{base_url}}"], "path": ["v1", "subscriptions", "{{subscription_id}}", "resume"] }
+          }
+        },
+        {
+          "name": "Change Plan",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newPlanId\": \"{{plan_id}}\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/v1/subscriptions/{{subscription_id}}/change-plan", "host": ["{{base_url}}"], "path": ["v1", "subscriptions", "{{subscription_id}}", "change-plan"] }
+          }
+        },
+        {
+          "name": "Report Usage",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idempotencyKey\": \"usage-1\",\n  \"quantity\": 100,\n  \"timestamp\": \"2026-06-15T10:30:00Z\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/v1/subscriptions/{{subscription_id}}/usage", "host": ["{{base_url}}"], "path": ["v1", "subscriptions", "{{subscription_id}}", "usage"] }
+          }
+        },
+        {
+          "name": "Get Usage Summary",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/subscriptions/{{subscription_id}}/usage", "host": ["{{base_url}}"], "path": ["v1", "subscriptions", "{{subscription_id}}", "usage"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Invoices",
+      "item": [
+        {
+          "name": "List Invoices",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/invoices?customerId={{customer_id}}", "host": ["{{base_url}}"], "path": ["v1", "invoices"], "query": [{ "key": "customerId", "value": "{{customer_id}}" }] }
+          }
+        },
+        {
+          "name": "Get Invoice",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('invoice_id', json.invoice.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/invoices/{{invoice_id}}", "host": ["{{base_url}}"], "path": ["v1", "invoices", "{{invoice_id}}"] }
+          }
+        },
+        {
+          "name": "Void Invoice",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/v1/invoices/{{invoice_id}}/void", "host": ["{{base_url}}"], "path": ["v1", "invoices", "{{invoice_id}}", "void"] }
+          }
+        },
+        {
+          "name": "Retry Invoice",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/v1/invoices/{{invoice_id}}/retry", "host": ["{{base_url}}"], "path": ["v1", "invoices", "{{invoice_id}}", "retry"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Webhook Endpoints",
+      "item": [
+        {
+          "name": "Create Endpoint",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('endpoint_id', json.endpoint.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://myapp.com/webhooks/recurva\",\n  \"eventTypes\": [\"subscription.created\", \"invoice.paid\"]\n}"
+            },
+            "url": { "raw": "{{base_url}}/v1/webhooks/endpoints", "host": ["{{base_url}}"], "path": ["v1", "webhooks", "endpoints"] }
+          }
+        },
+        {
+          "name": "List Endpoints",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/webhooks/endpoints", "host": ["{{base_url}}"], "path": ["v1", "webhooks", "endpoints"] }
+          }
+        },
+        {
+          "name": "Get Endpoint",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/webhooks/endpoints/{{endpoint_id}}", "host": ["{{base_url}}"], "path": ["v1", "webhooks", "endpoints", "{{endpoint_id}}"] }
+          }
+        },
+        {
+          "name": "Update Endpoint",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://myapp.com/webhooks/recurva-v2\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/v1/webhooks/endpoints/{{endpoint_id}}", "host": ["{{base_url}}"], "path": ["v1", "webhooks", "endpoints", "{{endpoint_id}}"] }
+          }
+        },
+        {
+          "name": "Delete Endpoint",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{base_url}}/v1/webhooks/endpoints/{{endpoint_id}}", "host": ["{{base_url}}"], "path": ["v1", "webhooks", "endpoints", "{{endpoint_id}}"] }
+          }
+        },
+        {
+          "name": "List Deliveries",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/webhooks/endpoints/{{endpoint_id}}/deliveries", "host": ["{{base_url}}"], "path": ["v1", "webhooks", "endpoints", "{{endpoint_id}}", "deliveries"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Portal",
+      "item": [
+        {
+          "name": "Request Magic Link",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('portal_token', json.magicToken);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customer_id}}\",\n  \"tenantId\": \"...\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/v1/portal/auth/request", "host": ["{{base_url}}"], "path": ["v1", "portal", "auth", "request"] }
+          }
+        },
+        {
+          "name": "Verify Magic Link",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{portal_token}}", "type": "string" }] },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/portal/auth/verify?token={{portal_token}}", "host": ["{{base_url}}"], "path": ["v1", "portal", "auth", "verify"], "query": [{ "key": "token", "value": "{{portal_token}}" }] }
+          }
+        },
+        {
+          "name": "Portal Subscriptions",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{portal_token}}", "type": "string" }] },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/portal/subscriptions", "host": ["{{base_url}}"], "path": ["v1", "portal", "subscriptions"] }
+          }
+        },
+        {
+          "name": "Portal Invoices",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{portal_token}}", "type": "string" }] },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/portal/invoices", "host": ["{{base_url}}"], "path": ["v1", "portal", "invoices"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "item": [
+        {
+          "name": "Dashboard Auth",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('dashboard_token', json.token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@company.com\",\n  \"password\": \"your-password\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/v1/dashboard/auth", "host": ["{{base_url}}"], "path": ["v1", "dashboard", "auth"] }
+          }
+        },
+        {
+          "name": "Dashboard Metrics",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{dashboard_token}}", "type": "string" }] },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/dashboard/metrics", "host": ["{{base_url}}"], "path": ["v1", "dashboard", "metrics"] }
+          }
+        },
+        {
+          "name": "Dashboard Dunning Metrics",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{dashboard_token}}", "type": "string" }] },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/dashboard/dunning-metrics", "host": ["{{base_url}}"], "path": ["v1", "dashboard", "dunning-metrics"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Revenue Report",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{dashboard_token}}", "type": "string" }] },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/reports/revenue?from=2026-01-01&to=2026-06-30", "host": ["{{base_url}}"], "path": ["v1", "reports", "revenue"], "query": [{ "key": "from", "value": "2026-01-01" }, { "key": "to", "value": "2026-06-30" }] }
+          }
+        },
+        {
+          "name": "Cohort Report",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{dashboard_token}}", "type": "string" }] },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/reports/cohorts", "host": ["{{base_url}}"], "path": ["v1", "reports", "cohorts"] }
+          }
+        },
+        {
+          "name": "CLV Report",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{dashboard_token}}", "type": "string" }] },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/reports/clv", "host": ["{{base_url}}"], "path": ["v1", "reports", "clv"] }
+          }
+        },
+        {
+          "name": "Dunning Report",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{dashboard_token}}", "type": "string" }] },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/reports/dunning", "host": ["{{base_url}}"], "path": ["v1", "reports", "dunning"] }
+          }
+        },
+        {
+          "name": "Reconciliation Report",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{dashboard_token}}", "type": "string" }] },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/v1/reports/reconciliation", "host": ["{{base_url}}"], "path": ["v1", "reports", "reconciliation"] }
+          }
+        }
+      ]
+    }
+  ]
+}

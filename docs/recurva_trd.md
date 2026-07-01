@@ -170,7 +170,7 @@ CREATE TABLE tenants (
 CREATE TABLE tenant_api_keys (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id       UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    -- Key prefix shown in dashboard for identification (e.g. "rk_live_abc12")
+    -- Key prefix shown in dashboard for identification (e.g. "rcv_live_abc12")
     key_prefix      TEXT NOT NULL,
     -- SHA-256 hash of the full key. Raw key is never stored.
     key_hash        TEXT NOT NULL UNIQUE,
@@ -1286,7 +1286,7 @@ Every delivery attempt is recorded in `webhook_deliveries`. The table retains al
 
 ### Authentication
 
-**Tenant API Key:** Send as `Authorization: Bearer rk_live_{key}`. Recurva hashes the incoming key with SHA-256 and looks up the hash in `tenant_api_keys`. All tenant management endpoints require this.
+**Tenant API Key:** Send as `Authorization: Bearer rcv_live_{key}`. Recurva hashes the incoming key with SHA-256 and looks up the hash in `tenant_api_keys`. All tenant management endpoints require this.
 
 **Customer JWT:** Portal and self-serve endpoints accept a short-lived JWT issued by `POST /portal/auth/token`. Payload: `{ sub: customer_id, tenant_id, iat, exp }`.
 
@@ -1603,7 +1603,7 @@ Revenue collected per period.
 
 ```typescript
 const rawKey = `rk_${env === 'live' ? 'live' : 'test'}_${crypto.randomBytes(32).toString('base64url')}`;
-// Example: rk_live_{base64url-encoded-random-bytes}
+// Example: rcv_live_{base64url-encoded-random-bytes}
 ```
 
 **Storage:** SHA-256 hash only. The raw key is returned to the tenant once at creation and never stored.
@@ -1614,7 +1614,7 @@ const keyHash = crypto.createHash('sha256').update(rawKey).digest('hex');
 
 **Rationale for SHA-256 over bcrypt:** API keys are long random strings (256 bits of entropy), unlike passwords which have low entropy and need bcrypt's cost factor. SHA-256 lookup is constant time (via `timingSafeEqual`) and fast enough for high-frequency API calls where bcrypt's intentional slowness would add unacceptable latency.
 
-**Key prefix** (e.g., `rk_live_abc12`) is stored in plaintext for identification in the dashboard. Prefix is the first 12 characters, which does not meaningfully reduce security.
+**Key prefix** (e.g., `rcv_live_abc12`) is stored in plaintext for identification in the dashboard. Prefix is the first 12 characters, which does not meaningfully reduce security.
 
 ### 11.2 Webhook HMAC Signing
 

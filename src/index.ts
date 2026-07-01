@@ -2,11 +2,15 @@ import { config } from './config';
 import { logger } from './logger';
 import { createApp } from './api/app';
 import { getDb, closeDb } from './db/client';
+import { startSchedulers } from './scheduler/runner';
 
 const app = createApp();
 
 // Initialize DB connection on startup
 getDb();
+
+// Start background schedulers (billing, dunning, etc.)
+startSchedulers();
 
 const server = Bun.serve({
   port: config.PORT,

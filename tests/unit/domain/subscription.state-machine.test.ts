@@ -3,6 +3,23 @@ import { applyTransition } from '../../../src/domain/subscription/subscription.s
 import { InvalidTransitionError } from '../../../src/errors';
 
 describe('Subscription State Machine', () => {
+  describe('incomplete state', () => {
+    it('transitions to active on CHECKOUT_COMPLETED', () => {
+      const result = applyTransition('incomplete', 'CHECKOUT_COMPLETED');
+      expect(result.nextState).toBe('active');
+      expect(result.sideEffects).toContain('ACTIVATE');
+    });
+
+    it('transitions to cancelled on CANCEL', () => {
+      const result = applyTransition('incomplete', 'CANCEL');
+      expect(result.nextState).toBe('cancelled');
+    });
+
+    it('throws on invalid transition from incomplete', () => {
+      expect(() => applyTransition('incomplete', 'PAUSE')).toThrow(InvalidTransitionError);
+    });
+  });
+
   describe('trialing state', () => {
     it('transitions to active on TRIAL_END', () => {
       const result = applyTransition('trialing', 'TRIAL_END');
@@ -101,6 +118,10 @@ describe('Subscription State Machine', () => {
 
     it('throws when cancelled gets PAUSE', () => {
       expect(() => applyTransition('cancelled', 'PAUSE')).toThrow(InvalidTransitionError);
+    });
+
+    it('throws when incomplete gets RESUME', () => {
+      expect(() => applyTransition('incomplete', 'RESUME')).toThrow(InvalidTransitionError);
     });
   });
 });

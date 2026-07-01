@@ -1622,7 +1622,7 @@ The `WHERE` clause atomically checks the limit and the `UPDATE` in the same oper
 
 ```http
 POST /v1/usage
-X-API-Key: rk_live_...
+X-API-Key: rcv_live_...
 
 {
   "subscriptionId": "sub_...",
@@ -2024,7 +2024,7 @@ const nombaClient = c.get('nombaClient');
 ### API Key Format
 
 ```
-rk_live_<32 random bytes as hex>   // Live environment
+rcv_live_<32 random bytes as hex>   // Live environment
 rk_test_<32 random bytes as hex>   // Test environment
 ```
 

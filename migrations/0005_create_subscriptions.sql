@@ -5,7 +5,7 @@ CREATE TABLE subscriptions (
     plan_id                 UUID NOT NULL REFERENCES plans(id),
     currency                TEXT NOT NULL CHECK (currency IN ('NGN', 'USD', 'GBP', 'EUR')),
     status                  TEXT NOT NULL CHECK (status IN (
-                                'trialing', 'active', 'past_due', 'paused',
+                                'incomplete', 'trialing', 'active', 'past_due', 'paused',
                                 'cancelled', 'ended', 'unpaid'
                             )),
     payment_method_id       UUID, -- REFERENCES payment_methods(id) added later
