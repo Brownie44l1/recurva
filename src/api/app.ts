@@ -12,7 +12,11 @@ import { subscriptionRoutes } from './routes/subscription.routes';
 import { usageRoutes } from './routes/usage.routes';
 import { invoiceRoutes } from './routes/invoice.routes';
 import { webhookRoutes } from './routes/webhook.routes';
+import { portalRoutes } from '../portal/routes';
+import { dashboardRoutes } from '../dashboard/routes';
+import { reportRoutes } from '../reports/routes';
 import { handleNombaCheckoutCallback } from '../webhooks/inbound/nomba';
+import { handleNombaWebhook } from '../webhooks/inbound/nomba-webhook';
 
 export function createApp() {
   const app = new Hono();
@@ -36,6 +40,7 @@ export function createApp() {
   });
 
   app.post('/webhooks/nomba/checkout', handleNombaCheckoutCallback);
+  app.post('/webhooks/nomba', handleNombaWebhook);
 
   app.get('/health', async (c) => {
     try {
@@ -71,6 +76,13 @@ export function createApp() {
 
   // Usage routes are mounted under subscriptions
   v1.route('/subscriptions', usageRoutes);
+
+  // Portal and dashboard routes
+  v1.route('/portal', portalRoutes);
+  v1.route('/dashboard', dashboardRoutes);
+
+  // Reports routes
+  v1.route('/reports', reportRoutes);
 
   app.route('/v1', v1);
 

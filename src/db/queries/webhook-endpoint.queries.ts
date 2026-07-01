@@ -26,3 +26,23 @@ export async function findEndpointById(sql: Sql, tenantId: string, endpointId: s
   `;
   return row ?? null;
 }
+
+export async function updateEndpoint(sql: Sql, tenantId: string, endpointId: string, input: {
+  url?: string;
+  eventTypes?: string[];
+  isActive?: boolean;
+}): Promise<WebhookEndpoint | null> {
+  const [row] = await sql<WebhookEndpoint[]>`
+    UPDATE webhook_endpoints SET
+      url = COALESCE(${input.url ?? null}, url),
+      event_types = CASE WHEN ${sql.json(input.eventTypes ?? null as any)}::jsonb IS NOT NULL THEN ${sql.json(input.eventTypes ?? [] as any)}::jsonb ELSE event_types END,
+      is_active = COALESCE(${input.isActive ?? null}, is_active)
+    WHERE id = ${endpointId} AND tenant_id = ${tenantId}
+    RETURNING *
+  `;
+  return row ?? null;
+}
+
+export async function deleteEndpoint(sql: Sql, tenantId: string, endpointId: string): Promise<void> {
+  await sql`DELETE FROM webhook_endpoints WHERE id = ${endpointId} AND tenant_id = ${tenantId}`;
+}

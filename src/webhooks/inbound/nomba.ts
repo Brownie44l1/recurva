@@ -7,6 +7,7 @@ import * as customerQueries from '../../db/queries/customer.queries';
 import { config } from '../../config';
 import { logger } from '../../logger';
 import * as crypto from 'crypto';
+import { transitionState } from '../../domain/subscription/subscription.service';
 
 interface NombaCheckoutCallbackPayload {
   event: 'checkout.completed';
@@ -86,6 +87,13 @@ export async function handleNombaCheckoutCallback(c: Context): Promise<Response>
   if (subscription) {
     if (!subscription.paymentMethodId) {
       await subscriptionQueries.updateSubscriptionPaymentMethod(sql, checkout.tenantId, checkout.subscriptionId, pm.id);
+    }
+
+    if (subscription.status === 'incomplete') {
+      await transitionState(sql, checkout.tenantId, checkout.subscriptionId, 'CHECKOUT_COMPLETED', {
+        actorType: 'system',
+        actorId: 'nomba-checkout',
+      });
     }
 
     if (!pm.isPrimary) {

@@ -20,6 +20,10 @@ export interface TransitionResult {
 }
 
 const TRANSITION_TABLE: Record<SubscriptionStatus, Partial<Record<SubscriptionEvent, TransitionResult>>> = {
+  incomplete: {
+    CHECKOUT_COMPLETED: { nextState: 'active', sideEffects: ['ACTIVATE'] },
+    CANCEL: { nextState: 'cancelled', sideEffects: ['CANCEL_IMMEDIATELY'] },
+  },
   trialing: {
     TRIAL_END: { nextState: 'active', sideEffects: ['BILL_NOW'] },
     PAYMENT_SUCCESS: { nextState: 'active', sideEffects: ['ACTIVATE'] },
