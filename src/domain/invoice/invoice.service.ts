@@ -130,9 +130,13 @@ export async function buildInvoice(
 }
 
 export async function finalizeInvoice(sql: Sql, tenantId: string, invoiceId: string): Promise<Invoice> {
-  const invoice = await queries.updateInvoiceStatus(sql, invoiceId, 'open');
+  const invoice = await queries.findInvoiceById(sql, tenantId, invoiceId);
+  if (!invoice) throw new NotFoundError('Invoice', invoiceId);
+  if (invoice.status !== 'draft') return invoice;
+
+  const updated = await queries.updateInvoiceStatus(sql, invoiceId, 'open');
   const lineItems = (await queries.findInvoiceById(sql, tenantId, invoiceId))?.lineItems ?? [];
-  return { ...invoice, lineItems };
+  return { ...updated, lineItems };
 }
 
 export async function listInvoices(sql: Sql, tenantId: string, customerId: string, limit?: number, offset?: number): Promise<Invoice[]> {
