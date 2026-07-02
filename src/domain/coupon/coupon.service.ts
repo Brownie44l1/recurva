@@ -57,9 +57,9 @@ export async function applyDiscount(amount: number, coupon: Coupon): Promise<Dis
 }
 
 export async function recordRedemption(sql: Sql, tenantId: string, couponId: string, subscriptionId: string): Promise<void> {
-  const existing = await queries.findRedemption(sql, couponId, subscriptionId);
+  const existing = await queries.findRedemptionForUpdate(sql, couponId, subscriptionId);
   if (!existing) {
     await queries.insertRedemption(sql, couponId, subscriptionId);
+    await queries.incrementRedemptionCount(sql, couponId);
   }
-  await queries.incrementRedemptionCount(sql, couponId);
 }

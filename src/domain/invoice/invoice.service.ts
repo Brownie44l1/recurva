@@ -53,7 +53,7 @@ export async function buildInvoice(
   if (options.applyCoupon && subscription.couponId) {
     const coupon = await couponQueries.findCouponById(sql, tenantId, subscription.couponId);
     if (coupon && coupon.isActive) {
-      const redemption = await couponQueries.findRedemption(sql, coupon.id, subscription.id);
+      const redemption = await couponQueries.findRedemptionForUpdate(sql, coupon.id, subscription.id);
       const monthsApplied = redemption?.monthsApplied ?? 0;
 
       let eligible = true;
