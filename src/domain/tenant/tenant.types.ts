@@ -25,6 +25,7 @@ export interface TenantApiKey {
 export interface CreateTenantInput {
   name: string;
   email: string;
+  password?: string;
 }
 
 export interface CreateApiKeyInput {

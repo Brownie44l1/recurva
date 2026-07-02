@@ -10,6 +10,7 @@ const router = new Hono();
 const registerSchema = z.object({
   name: z.string().min(1).max(255),
   email: z.string().email(),
+  password: z.string().min(8).max(128).optional(),
 });
 
 router.post('/register', zValidator('json', registerSchema), async (c) => {

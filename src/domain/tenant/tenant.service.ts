@@ -32,6 +32,15 @@ export async function createTenant(sql: Sql, input: CreateTenantInput): Promise<
     label: 'Default API Key',
   });
 
+  if (input.password) {
+    const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+    await queries.insertAdminCredentials(sql, {
+      tenantId: tenant.id,
+      email: input.email,
+      passwordHash,
+    });
+  }
+
   return { tenant, rawApiKey: rawKey };
 }
 

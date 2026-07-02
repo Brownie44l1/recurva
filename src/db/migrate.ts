@@ -22,7 +22,7 @@ async function ensureMigrationsTable(sql: ReturnType<typeof getDb>) {
     JOIN   pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
     WHERE  i.indrelid = 'schema_migrations'::regclass AND i.indisprimary
   `;
-  if (cols.length === 1 && cols[0].attname === 'version') {
+  if (cols.length === 1 && cols[0]?.attname === 'version') {
     logger.info('Upgrading schema_migrations primary key to (version, name)');
     await sql`ALTER TABLE schema_migrations DROP CONSTRAINT schema_migrations_pkey`;
     await sql`ALTER TABLE schema_migrations ADD PRIMARY KEY (version, name)`;

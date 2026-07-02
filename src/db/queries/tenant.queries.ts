@@ -55,6 +55,18 @@ export async function findApiKeyByHash(sql: Sql, keyHash: string): Promise<{ key
   return row ?? null;
 }
 
+export async function insertAdminCredentials(sql: Sql, input: {
+  tenantId: string;
+  email: string;
+  passwordHash: string;
+}) {
+  await sql`
+    INSERT INTO tenant_admin_credentials (tenant_id, email, password_hash)
+    VALUES (${input.tenantId}, ${input.email}, ${input.passwordHash})
+    ON CONFLICT (email) DO NOTHING
+  `;
+}
+
 export async function updateApiKeyLastUsed(sql: Sql, keyId: string): Promise<void> {
   await sql`
     UPDATE tenant_api_keys SET last_used_at = NOW() WHERE id = ${keyId}
