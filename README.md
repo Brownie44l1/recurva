@@ -14,22 +14,35 @@ API is live at `http://localhost:3000`. See [docs/quickstart.md](docs/quickstart
 
 ## Architecture
 
-```
-┌─────────────┐  HTTP/JSON   ┌──────────────────┐
-│   Your App   │─────────────▶│   Recurva API     │
-│  (Frontend)  │◀─────────────│  (Bun + Hono)     │
-└─────────────┘              └────────┬─────────┘
-                                      │
-                         ┌────────────┴────────────┐
-                         │    PostgreSQL 16         │
-                         │  (subscriptions, plans,  │
-                         │   invoices, customers)   │
-                         └─────────────────────────┘
-                                      │
-                         ┌────────────┴────────────┐
-                         │    Nomba                 │
-                         │  (Card processing)       │
-                         └─────────────────────────┘
+```mermaid
+graph TB
+    subgraph "Your Infrastructure"
+        APP[Your App / Frontend]
+    end
+
+    subgraph "Recurva"
+        API[API Server<br/>Bun + Hono]
+        CRON[Scheduler<br/>In-process cron]
+        DB[(PostgreSQL 16)]
+        OUTWH[Outbound Webhooks<br/>HMAC-signed POST]
+        INWH[Inbound Webhooks<br/>HMAC-verified POST]
+    end
+
+    subgraph "Nomba"
+        NOMBA[Nomba API<br/>Card processing]
+    end
+
+    APP -- HTTP/JSON --> API
+    API --> DB
+    CRON --> API
+    API --> OUTWH
+    INWH --> API
+    API -- Checkout / Charge / Refund --> NOMBA
+    NOMBA -- Payment callbacks --> INWH
+
+    style API fill:#4a9,color:#fff
+    style DB fill:#69c,color:#fff
+    style NOMBA fill:#c96,color:#fff
 ```
 
 ### Components
