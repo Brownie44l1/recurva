@@ -35,6 +35,14 @@ export async function findPendingCheckoutByReference(sql: Sql, orderReference: s
   return row ?? null;
 }
 
+export async function findPendingCheckoutForUpdate(sql: Sql, orderReference: string): Promise<PendingCheckout | null> {
+  const [row] = await sql<PendingCheckout[]>`
+    SELECT * FROM pending_checkouts WHERE order_reference = ${orderReference} LIMIT 1
+    FOR UPDATE
+  `;
+  return row ?? null;
+}
+
 export async function markPendingCheckoutConsumed(sql: Sql, id: string): Promise<void> {
   await sql`UPDATE pending_checkouts SET consumed = TRUE WHERE id = ${id}`;
 }
