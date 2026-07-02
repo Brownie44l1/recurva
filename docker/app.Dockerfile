@@ -18,6 +18,8 @@ COPY --from=build /app/dist ./dist
 COPY migrations ./migrations
 COPY package.json ./
 
+RUN apt-get update -qq && apt-get install -y -qq curl && rm -rf /var/lib/apt/lists/*
+
 ENV NODE_ENV=production
 EXPOSE 3000
 
