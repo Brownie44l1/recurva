@@ -1,9 +1,12 @@
 import type { Sql, TransactionSql } from 'postgres';
 import { withTransaction } from '../../db/transaction';
-import type { Subscription, CreateSubscriptionInput, CancelOptions, TransitionContext, SubscriptionEvent } from './subscription.types';
+import type { Subscription, CreateSubscriptionInput, CancelOptions, TransitionContext, SubscriptionEvent, ChangePlanInput } from './subscription.types';
 import * as queries from '../../db/queries/subscription.queries';
+import * as planQueries from '../../db/queries/plan.queries';
+import * as invoiceQueries from '../../db/queries/invoice.queries';
 import * as auditQueries from '../../db/queries/audit-log.queries';
 import { applyTransition } from './subscription.state-machine';
+import { calculateProration } from '../proration/proration.service';
 import { NotFoundError, ValidationError } from '../../errors';
 
 function asSql(tx: TransactionSql): Sql {
@@ -119,6 +122,84 @@ export async function resumeSubscription(sql: Sql, tenantId: string, subscriptio
 
     const { nextState } = applyTransition(subscription.status, 'RESUME');
     return queries.updateSubscriptionStatus(s, tenantId, subscriptionId, nextState);
+  });
+}
+
+export async function changePlan(
+  sql: Sql,
+  tenantId: string,
+  subscriptionId: string,
+  input: ChangePlanInput,
+): Promise<Subscription> {
+  return withTransaction(sql, async (tx) => {
+    const s = asSql(tx);
+    const subscription = await queries.findSubscriptionForUpdate(s, tenantId, subscriptionId);
+    if (!subscription) throw new NotFoundError('Subscription', subscriptionId);
+
+    const newPlan = await planQueries.findPlanById(s, tenantId, input.newPlanId);
+    if (!newPlan) throw new NotFoundError('Plan', input.newPlanId);
+
+    const oldPrice = newPlan.prices.find((p) => p.currency === subscription.currency);
+    if (!oldPrice) {
+      throw new ValidationError(`New plan does not support currency ${subscription.currency}`);
+    }
+
+    if (input.immediate) {
+      const oldPlan = await planQueries.findPlanById(s, tenantId, subscription.planId);
+      const oldPriceAmount = oldPlan?.prices.find((p) => p.currency === subscription.currency)?.amount ?? 0;
+
+      const now = new Date();
+      const proration = calculateProration(
+        oldPriceAmount,
+        oldPrice.amount,
+        subscription.currentPeriodStart,
+        now,
+        subscription.currentPeriodEnd,
+      );
+
+      if (proration.netAmount > 0) {
+        const prorationInvoice = await invoiceQueries.insertInvoice(s, tenantId, {
+          customerId: subscription.customerId,
+          subscriptionId: subscription.id,
+          currency: subscription.currency,
+          subtotal: proration.netAmount,
+          discountAmount: 0,
+          total: proration.netAmount,
+          amountDue: proration.netAmount,
+          periodStart: now,
+          periodEnd: subscription.currentPeriodEnd,
+          dueDate: subscription.currentPeriodEnd,
+          idempotencyKey: `proration_${subscription.id}_${Math.floor(now.getTime() / 1000)}`,
+        });
+
+        await invoiceQueries.insertLineItem(s, prorationInvoice.id, {
+          type: 'proration',
+          description: `Plan change proration (${proration.daysRemaining} days remaining)`,
+          quantity: 1,
+          unitAmount: proration.netAmount,
+          amount: proration.netAmount,
+          periodStart: now,
+          periodEnd: subscription.currentPeriodEnd,
+        });
+      } else if (proration.netAmount < 0) {
+        const newBalance = (subscription.creditBalance ?? 0) + Math.abs(proration.netAmount);
+        await queries.updateSubscriptionCreditBalance(s, tenantId, subscriptionId, newBalance);
+      }
+    }
+
+    const updated = await queries.updateSubscriptionPlan(s, tenantId, subscriptionId, input.newPlanId);
+
+    await auditQueries.insertAuditLog(s, {
+      tenantId,
+      resourceType: 'subscription',
+      resourceId: subscriptionId,
+      actorType: input.immediate ? 'system' : 'api',
+      actorId: 'change-plan',
+      action: 'change_plan',
+      diff: { from: subscription.planId, to: input.newPlanId, immediate: input.immediate },
+    });
+
+    return updated;
   });
 }
 

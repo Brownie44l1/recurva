@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { getDb } from '../../db/client';
 import { tenantAuthMiddleware } from '../middleware/tenant-auth';
-import { createSubscription, getSubscription, cancelSubscription, pauseSubscription, resumeSubscription, listSubscriptionsByTenant, listSubscriptionsByCustomer } from '../../domain/subscription/subscription.service';
+import { createSubscription, getSubscription, cancelSubscription, pauseSubscription, resumeSubscription, changePlan, listSubscriptionsByTenant, listSubscriptionsByCustomer } from '../../domain/subscription/subscription.service';
 import { createSubscriptionSchema, cancelSubscriptionSchema, changePlanSchema } from '../validators/subscription.validator';
 
 const router = new Hono();
@@ -66,7 +66,8 @@ router.post('/:id/resume', async (c) => {
 router.post('/:id/change-plan', zValidator('json', changePlanSchema), async (c) => {
   const sql = getDb();
   const tenant = c.var.tenant;
-  const sub = await getSubscription(sql, tenant.id, c.req.param('id'));
+  const input = c.req.valid('json');
+  const sub = await changePlan(sql, tenant.id, c.req.param('id'), input);
   return c.json({ subscription: sub });
 });
 
