@@ -4,7 +4,9 @@ import type { BillingResult, BillingContext } from './billing.types';
 import * as invoiceQueries from '../../db/queries/invoice.queries';
 import * as subscriptionQueries from '../../db/queries/subscription.queries';
 import * as paymentMethodQueries from '../../db/queries/payment-method.queries';
+import * as tenantQueries from '../../db/queries/tenant.queries';
 import { buildInvoice, finalizeInvoice } from '../invoice/invoice.service';
+import { chargeCard } from '../nomba/nomba.service';
 import { transitionState } from '../subscription/subscription.service';
 
 function asSql(tx: TransactionSql): Sql {
@@ -48,18 +50,43 @@ export async function billSubscription(
       amount: finalized.amountDue,
     });
 
-    await invoiceQueries.updateChargeStatus(s, charge.id, 'succeeded', {
-      nombaChargeId: `pending_${charge.id}`,
-    });
+    try {
+      const tenant = await tenantQueries.findTenantById(s, tenantId);
+      if (!tenant) {
+        return { success: false, invoiceId: invoice.id, chargeId: charge.id, status: 'failed', failureReason: 'Tenant not found' };
+      }
 
-    await invoiceQueries.updateInvoiceStatus(s, invoice.id, 'paid');
+      const result = await chargeCard(tenant, {
+        token: pm.nombaToken,
+        amount: finalized.amountDue,
+        currency: subscription.currency,
+        transactionReference: charge.id,
+        callbackUrl: '',
+      });
 
-    const nextPeriodStart = new Date(subscription.currentPeriodEnd);
-    const nextPeriodEnd = new Date(nextPeriodStart.getTime() + (subscription.currentPeriodEnd.getTime() - subscription.currentPeriodStart.getTime()));
+      await invoiceQueries.updateChargeStatus(s, charge.id, 'succeeded', {
+        nombaChargeId: result.chargeId,
+        nombaReference: result.transactionId,
+      });
 
-    await subscriptionQueries.updateSubscriptionPeriod(s, tenantId, subscriptionId, nextPeriodStart, nextPeriodEnd);
+      await invoiceQueries.updateInvoiceStatus(s, invoice.id, 'paid');
 
-    return { success: true, invoiceId: invoice.id, chargeId: charge.id, status: 'paid' };
+      const nextPeriodStart = new Date(subscription.currentPeriodEnd);
+      const nextPeriodEnd = new Date(nextPeriodStart.getTime() + (subscription.currentPeriodEnd.getTime() - subscription.currentPeriodStart.getTime()));
+
+      await subscriptionQueries.updateSubscriptionPeriod(s, tenantId, subscriptionId, nextPeriodStart, nextPeriodEnd);
+
+      return { success: true, invoiceId: invoice.id, chargeId: charge.id, status: 'paid' };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      await invoiceQueries.updateChargeStatus(s, charge.id, 'failed', {
+        failureMessage: message,
+      });
+
+      await transitionState(s, tenantId, subscriptionId, 'PAYMENT_FAILED', context);
+
+      return { success: false, invoiceId: invoice.id, chargeId: charge.id, status: 'dunning', failureReason: message };
+    }
   });
 }
 
@@ -75,16 +102,58 @@ export async function retryCharge(
       return { success: false, invoiceId: '', chargeId: null, status: 'failed', failureReason: 'Invoice not found' };
     }
 
+    const subscription = await subscriptionQueries.findSubscriptionById(s, tenantId, invoice.subscriptionId);
+    if (!subscription) {
+      return { success: false, invoiceId: invoice.id, chargeId: null, status: 'failed', failureReason: 'Subscription not found' };
+    }
+
+    const pm = subscription.paymentMethodId
+      ? await paymentMethodQueries.findPaymentMethodById(s, tenantId, subscription.paymentMethodId)
+      : null;
+
     const charge = await invoiceQueries.insertCharge(s, tenantId, {
       customerId: invoice.customerId,
       invoiceId: invoice.id,
-      paymentMethodId: null,
+      paymentMethodId: pm?.id ?? null,
       currency: invoice.currency,
       amount: invoice.amountDue,
     });
 
-    await invoiceQueries.updateChargeStatus(s, charge.id, 'succeeded');
+    if (!pm) {
+      await invoiceQueries.updateChargeStatus(s, charge.id, 'failed', {
+        failureMessage: 'No payment method available',
+      });
+      return { success: false, invoiceId: invoice.id, chargeId: charge.id, status: 'failed', failureReason: 'No payment method available' };
+    }
 
-    return { success: true, invoiceId: invoice.id, chargeId: charge.id, status: 'paid' };
+    try {
+      const tenant = await tenantQueries.findTenantById(s, tenantId);
+      if (!tenant) {
+        return { success: false, invoiceId: invoice.id, chargeId: charge.id, status: 'failed', failureReason: 'Tenant not found' };
+      }
+
+      const result = await chargeCard(tenant, {
+        token: pm.nombaToken,
+        amount: invoice.amountDue,
+        currency: invoice.currency,
+        transactionReference: charge.id,
+        callbackUrl: '',
+      });
+
+      await invoiceQueries.updateChargeStatus(s, charge.id, 'succeeded', {
+        nombaChargeId: result.chargeId,
+        nombaReference: result.transactionId,
+      });
+
+      await invoiceQueries.updateInvoiceStatus(s, invoice.id, 'paid');
+
+      return { success: true, invoiceId: invoice.id, chargeId: charge.id, status: 'paid' };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      await invoiceQueries.updateChargeStatus(s, charge.id, 'failed', {
+        failureMessage: message,
+      });
+      return { success: false, invoiceId: invoice.id, chargeId: charge.id, status: 'failed', failureReason: message };
+    }
   });
 }
