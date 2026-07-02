@@ -66,6 +66,22 @@ export async function listEndpoints(sql: Sql, tenantId: string): Promise<Webhook
   return endpointQueries.findEndpointsByTenant(sql, tenantId);
 }
 
+export async function updateEndpoint(sql: Sql, tenantId: string, endpointId: string, input: {
+  url?: string;
+  eventTypes?: string[];
+  isActive?: boolean;
+}): Promise<WebhookEndpoint> {
+  const endpoint = await endpointQueries.updateEndpoint(sql, tenantId, endpointId, input);
+  if (!endpoint) throw new NotFoundError('WebhookEndpoint', endpointId);
+  return endpoint;
+}
+
+export async function deleteEndpoint(sql: Sql, tenantId: string, endpointId: string): Promise<void> {
+  const endpoint = await endpointQueries.findEndpointById(sql, tenantId, endpointId);
+  if (!endpoint) throw new NotFoundError('WebhookEndpoint', endpointId);
+  await endpointQueries.deleteEndpoint(sql, tenantId, endpointId);
+}
+
 export async function enqueueEvent(
   sql: Sql,
   tenantId: string,

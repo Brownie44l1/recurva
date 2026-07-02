@@ -5,7 +5,7 @@ import type { Tenant, CreateTenantInput } from './tenant.types';
 import * as queries from '../../db/queries/tenant.queries';
 import { ConflictError, NotFoundError, UnauthorizedError } from '../../errors';
 
-const KEY_PREFIX = 'rk_live';
+const KEY_PREFIX = 'rcv_live';
 const BCRYPT_ROUNDS = 12;
 
 function generateApiKey(): { rawKey: string; keyPrefix: string; keyHash: string } {

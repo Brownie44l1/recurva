@@ -1,6 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 import { withTransaction } from '../../db/transaction';
-import type { Subscription, CreateSubscriptionInput, CancelOptions, TransitionContext, SubscriptionEvent, ChangePlanInput } from './subscription.types';
+import type { Subscription, SubscriptionStatus, CreateSubscriptionInput, CancelOptions, TransitionContext, SubscriptionEvent, ChangePlanInput } from './subscription.types';
 import type { SideEffect } from './subscription.state-machine';
 import * as queries from '../../db/queries/subscription.queries';
 import * as planQueries from '../../db/queries/plan.queries';
@@ -23,7 +23,20 @@ export async function createSubscription(
   const now = new Date();
   const trialDays = input.trialDays ?? 0;
   const trialEnd = trialDays > 0 ? new Date(now.getTime() + trialDays * 86400000) : null;
-  const periodEnd = trialEnd ?? new Date(now.getTime() + 30 * 86400000);
+
+  let status: SubscriptionStatus;
+  let periodEnd: Date;
+
+  if (trialDays > 0) {
+    status = 'trialing';
+    periodEnd = trialEnd!;
+  } else if (!input.paymentMethodId) {
+    status = 'incomplete';
+    periodEnd = new Date(now.getTime() + 30 * 86400000);
+  } else {
+    status = 'active';
+    periodEnd = new Date(now.getTime() + 30 * 86400000);
+  }
 
   let couponId: string | null = null;
   if (input.couponCode) {
@@ -35,7 +48,7 @@ export async function createSubscription(
     customerId: input.customerId,
     planId: input.planId,
     currency: input.currency,
-    status: trialDays > 0 ? 'trialing' : 'active',
+    status,
     paymentMethodId: input.paymentMethodId ?? null,
     couponId,
     trialStart: trialDays > 0 ? now : null,

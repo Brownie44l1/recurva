@@ -1,4 +1,5 @@
 export type SubscriptionStatus =
+  | 'incomplete'
   | 'trialing'
   | 'active'
   | 'past_due'
@@ -11,6 +12,7 @@ export type SubscriptionEvent =
   | 'TRIAL_END'
   | 'PAYMENT_SUCCESS'
   | 'PAYMENT_FAILED'
+  | 'CHECKOUT_COMPLETED'
   | 'CANCEL'
   | 'PAUSE'
   | 'RESUME'

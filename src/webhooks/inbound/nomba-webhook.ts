@@ -10,173 +10,185 @@ import * as crypto from 'crypto';
 
 interface NombaWebhookPayload {
   event: string;
-  data: {
-    orderReference?: string;
-    transactionId: string;
-    amount: number;
-    currency: string;
-    status: string;
-    signature?: string;
-    [key: string]: unknown;
-  };
+  data: Record<string, unknown>;
+  eventId: string;
+  timestamp: string;
 }
 
-function verifyFieldSelectiveSignature(payload: NombaWebhookPayload, headerSignature: string): boolean {
-  const fields = [
-    payload.event,
-    payload.data.orderReference ?? '',
-    payload.data.transactionId,
-    String(payload.data.amount),
-    payload.data.currency,
-  ];
+export async function handleNombaWebhook(c: Context): Promise<Response> {
+  const rawBody = await c.req.text();
 
-  const hashPayload = fields.join(':');
+  const signature = c.req.header('X-Nomba-Signature');
+  if (!signature) {
+    logger.warn('Missing X-Nomba-Signature header');
+    return c.json({ error: 'missing_signature' }, 401);
+  }
 
   const expected = crypto
     .createHmac('sha256', config.NOMBA_WEBHOOK_SECRET)
-    .update(hashPayload)
+    .update(rawBody)
     .digest('hex');
 
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(headerSignature));
-}
+  let signatureValid = false;
+  try {
+    signatureValid = crypto.timingSafeEqual(
+      Buffer.from(signature),
+      Buffer.from(expected),
+    );
+  } catch {
+    return c.json({ error: 'invalid_signature' }, 401);
+  }
 
-export async function handleNombaWebhookEvent(c: Context): Promise<Response> {
-  const rawBody = await c.req.text();
+  if (!signatureValid) {
+    logger.warn({ signatureHash: expected.slice(0, 8) }, 'Invalid Nomba webhook signature');
+    return c.json({ error: 'invalid_signature' }, 401);
+  }
+
   let payload: NombaWebhookPayload;
-
   try {
     payload = JSON.parse(rawBody);
   } catch {
     return c.json({ error: 'invalid_json' }, 400);
   }
 
-  const headerSignature =
-    c.req.header('nomba-signature') ||
-    c.req.header('x-nomba-signature') ||
-    (payload.data?.signature as string | undefined);
-
-  if (!headerSignature || !verifyFieldSelectiveSignature(payload, headerSignature)) {
-    logger.warn({ event: payload.event, transactionId: payload.data?.transactionId }, 'Invalid Nomba webhook signature');
-    return c.json({ error: 'invalid_signature' }, 401);
-  }
-
   const sql = getDb();
 
-  switch (payload.event) {
-    case 'payment_success':
-      return handlePaymentSuccess(sql, payload);
-    case 'payment_failed':
-      return handlePaymentFailed(sql, payload);
-    case 'refund.completed':
-      return handleRefundCompleted(sql, payload);
-    default:
-      logger.warn({ event: payload.event }, 'Unsupported Nomba webhook event');
-      return c.json({ error: 'unsupported_event' }, 400);
+  const existing = await sql<{ id: string }[]>`
+    SELECT id FROM webhook_events WHERE nomba_event_id = ${payload.eventId} LIMIT 1
+  `;
+  if (existing.length > 0) {
+    return c.json({ status: 'already_processed' });
   }
+
+  const routing: Record<string, (payload: NombaWebhookPayload, sql: Sql) => Promise<void>> = {
+    'charge.success': handleChargeSuccess,
+    'charge.failure': handleChargeFailure,
+    'refund.completed': handleRefundCompleted,
+  };
+
+  const handler = routing[payload.event];
+  if (handler) {
+    await handler(payload, sql);
+  } else {
+    logger.warn({ event: payload.event, eventId: payload.eventId }, 'Unknown Nomba webhook event');
+    await sql`
+      INSERT INTO dead_letter_webhooks (nomba_event_id, event_type, payload, raw_body, reason)
+      VALUES (${payload.eventId}, ${payload.event}, ${sql.json(payload.data as any)}, ${rawBody}, 'unknown_event_type')
+    `;
+  }
+
+  await sql`
+    INSERT INTO webhook_events (nomba_event_id, event_type, payload)
+    VALUES (${payload.eventId}, ${payload.event}, ${sql.json(payload.data as any)})
+  `;
+
+  return c.json({ status: 'processed' });
 }
 
-async function handlePaymentSuccess(sql: Sql, payload: NombaWebhookPayload): Promise<Response> {
-  const transactionId = payload.data.transactionId;
+async function handleChargeSuccess(payload: NombaWebhookPayload, sql: Sql): Promise<void> {
+  const data = payload.data as {
+    transactionId?: string;
+    invoiceId?: string;
+    subscriptionId?: string;
+    tenantId?: string;
+  };
 
-  const result = await sql.begin(async (tx) => {
+  if (!data.invoiceId || !data.tenantId) {
+    logger.warn({ eventId: payload.eventId }, 'charge.success missing invoiceId or tenantId');
+    return;
+  }
+
+  await sql.begin(async (tx) => {
     const s = tx as unknown as Sql;
 
-    const charge = await invoiceQueries.findChargeByNombaReferenceWithLock(s, transactionId);
-    if (!charge) {
-      logger.warn({ transactionId }, 'Charge not found for payment_success webhook');
-      return { status: 404, body: { error: 'charge_not_found' } };
+    const charge = await invoiceQueries.findChargeByNombaReferenceWithLock(s, `${data.transactionId}`);
+    if (charge && charge.status === 'succeeded') {
+      return;
     }
 
-    if (charge.status === 'succeeded') {
-      return { status: 200, body: { status: 'already_processed' } };
+    const invoice = await invoiceQueries.findInvoiceById(s, data.tenantId!, data.invoiceId!);
+    if (!invoice || invoice.status === 'paid' || invoice.status === 'void') {
+      return;
     }
 
-    await invoiceQueries.updateChargeStatus(s, charge.id, 'succeeded', {
-      nombaChargeId: transactionId,
-      nombaReference: transactionId,
-    });
-
-    const invoice = await invoiceQueries.findInvoiceById(s, charge.tenantId, charge.invoiceId);
-    if (!invoice) {
-      logger.warn({ chargeId: charge.id }, 'Invoice not found for charge');
-      return { status: 404, body: { error: 'invoice_not_found' } };
+    if (charge) {
+      await invoiceQueries.updateChargeStatus(s, charge.id, 'succeeded', {
+        nombaChargeId: data.transactionId,
+        nombaReference: data.transactionId,
+      });
     }
 
-    await invoiceQueries.updateInvoiceStatus(s, charge.invoiceId, 'paid');
+    await invoiceQueries.updateInvoiceStatus(s, data.invoiceId!, 'paid');
 
-    const subscription = await subscriptionQueries.findSubscriptionById(s, charge.tenantId, invoice.subscriptionId);
-    if (subscription) {
-      await transitionState(s, charge.tenantId, invoice.subscriptionId, 'PAYMENT_SUCCESS', {
+    const subscription = await subscriptionQueries.findSubscriptionById(s, data.tenantId!, invoice.subscriptionId);
+    if (subscription && (subscription.status === 'past_due' || subscription.status === 'incomplete')) {
+      await transitionState(s, data.tenantId!, invoice.subscriptionId, 'PAYMENT_SUCCESS', {
         actorType: 'system',
         actorId: 'nomba-webhook',
       });
     }
 
-    logger.info({ transactionId, chargeId: charge.id }, 'Payment confirmed via webhook');
-    return { status: 200, body: { status: 'processed' } };
-  });
-
-  return new Response(JSON.stringify(result.body), {
-    status: result.status as any,
-    headers: { 'Content-Type': 'application/json' },
+    logger.info({ invoiceId: data.invoiceId, eventId: payload.eventId }, 'Charge success handled');
   });
 }
 
-async function handlePaymentFailed(sql: Sql, payload: NombaWebhookPayload): Promise<Response> {
-  const transactionId = payload.data.transactionId;
+async function handleChargeFailure(payload: NombaWebhookPayload, sql: Sql): Promise<void> {
+  const data = payload.data as {
+    transactionId?: string;
+    invoiceId?: string;
+    subscriptionId?: string;
+    tenantId?: string;
+    failureCode?: string;
+    failureMessage?: string;
+  };
 
-  const result = await sql.begin(async (tx) => {
+  if (!data.invoiceId || !data.tenantId) {
+    logger.warn({ eventId: payload.eventId }, 'charge.failure missing invoiceId or tenantId');
+    return;
+  }
+
+  await sql.begin(async (tx) => {
     const s = tx as unknown as Sql;
 
-    const charge = await invoiceQueries.findChargeByNombaReferenceWithLock(s, transactionId);
-    if (!charge) {
-      logger.warn({ transactionId }, 'Charge not found for payment_failed webhook');
-      return { status: 404, body: { error: 'charge_not_found' } };
+    const charge = await invoiceQueries.findChargeByNombaReferenceWithLock(s, `${data.transactionId}`);
+    if (charge && charge.status === 'failed') {
+      return;
     }
 
-    if (charge.status === 'failed') {
-      return { status: 200, body: { status: 'already_processed' } };
+    if (charge) {
+      await invoiceQueries.updateChargeStatus(s, charge.id, 'failed', {
+        failureMessage: data.failureMessage ?? 'Payment failed per Nomba webhook',
+      });
     }
 
-    await invoiceQueries.updateChargeStatus(s, charge.id, 'failed', {
-      failureMessage: 'Payment failed per Nomba webhook',
-    });
-
-    const invoice = await invoiceQueries.findInvoiceById(s, charge.tenantId, charge.invoiceId);
-    if (!invoice) {
-      logger.warn({ chargeId: charge.id }, 'Invoice not found for charge');
-      return { status: 404, body: { error: 'invoice_not_found' } };
+    const invoice = await invoiceQueries.findInvoiceById(s, data.tenantId!, data.invoiceId!);
+    if (!invoice || invoice.status === 'paid' || invoice.status === 'void') {
+      return;
     }
 
-    const subscription = await subscriptionQueries.findSubscriptionById(s, charge.tenantId, invoice.subscriptionId);
-    if (subscription) {
-      await transitionState(s, charge.tenantId, invoice.subscriptionId, 'PAYMENT_FAILED', {
+    const subscription = await subscriptionQueries.findSubscriptionById(s, data.tenantId!, invoice.subscriptionId);
+    if (subscription && subscription.status === 'active') {
+      await transitionState(s, data.tenantId!, invoice.subscriptionId, 'PAYMENT_FAILED', {
         actorType: 'system',
         actorId: 'nomba-webhook',
       });
     }
 
-    logger.info({ transactionId, chargeId: charge.id }, 'Payment failure confirmed via webhook');
-    return { status: 200, body: { status: 'processed' } };
-  });
-
-  return new Response(JSON.stringify(result.body), {
-    status: result.status as any,
-    headers: { 'Content-Type': 'application/json' },
+    logger.info({ invoiceId: data.invoiceId, failureCode: data.failureCode, eventId: payload.eventId }, 'Charge failure recorded');
   });
 }
 
-async function handleRefundCompleted(sql: Sql, payload: NombaWebhookPayload): Promise<Response> {
-  const transactionId = payload.data.transactionId;
+async function handleRefundCompleted(payload: NombaWebhookPayload, sql: Sql): Promise<void> {
+  const data = payload.data as {
+    transactionId?: string;
+    chargeId?: string;
+    amount?: number;
+  };
 
-  await invoiceQueries.updateChargeByNombaReference(sql, transactionId, {
-    status: 'refunded',
-    amountRefunded: payload.data.amount,
-  });
-
-  logger.info({ transactionId }, 'Refund completed via webhook');
-  return new Response(JSON.stringify({ status: 'processed' }), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  });
+  if (data.chargeId) {
+    await sql`
+      UPDATE charges SET status = 'refunded', amount_refunded = COALESCE(${data.amount ?? 0}, 0), refunded_at = NOW() WHERE id = ${data.chargeId}
+    `;
+    logger.info({ chargeId: data.chargeId, eventId: payload.eventId }, 'Refund completed handled');
+  }
 }

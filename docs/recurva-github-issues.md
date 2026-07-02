@@ -244,11 +244,11 @@ Write and apply the migration that creates the `tenants` table with all required
 **Blocked by:** #RCV-010
 
 **Description:**
-Implement `POST /v1/tenants/register` that accepts tenant name, email, and Nomba credentials, generates a raw API key with `rk_live_` prefix, hashes it with bcrypt, stores the hash, and returns the raw key once (never again). Tenants are created in `test` mode by default.
+Implement `POST /v1/tenants/register` that accepts tenant name, email, and Nomba credentials, generates a raw API key with `rcv_live_` prefix, hashes it with bcrypt, stores the hash, and returns the raw key once (never again). Tenants are created in `test` mode by default.
 
 **Acceptance Criteria:**
 - [x] Zod schema validates request body; 422 on invalid input
-- [x] Raw API key format: `rk_live_<32-char-random-hex>`
+- [x] Raw API key format: `rcv_live_<32-char-random-hex>`
 - [x] bcrypt hash (cost factor 12) stored; raw key returned in response and never persisted
 - [x] Duplicate email returns 409 with descriptive error
 - [x] Response includes tenant ID, name, email, mode, and the raw API key
@@ -268,7 +268,7 @@ Implement `POST /v1/tenants/register` that accepts tenant name, email, and Nomba
 **Blocked by:** #RCV-011
 
 **Description:**
-Implement middleware that reads the `Authorization: Bearer rk_live_...` header, hashes the provided key, performs a constant-time lookup against all tenant hashes, and injects the resolved tenant into Hono context as `c.var.tenant`. Missing or invalid keys return 401.
+Implement middleware that reads the `Authorization: Bearer rcv_live_...` header, hashes the provided key, performs a constant-time lookup against all tenant hashes, and injects the resolved tenant into Hono context as `c.var.tenant`. Missing or invalid keys return 401.
 
 **Acceptance Criteria:**
 - [x] Timing-safe comparison used for hash lookup (prevents enumeration)
@@ -627,14 +627,14 @@ Implement `createCheckoutSession(client, params)` that calls Nomba's checkout AP
 Implement the handler that processes Nomba's post-checkout callback, extracts the card token and metadata (last4, brand, expiry), and persists a `payment_method` record. Marks the checkout reference as consumed. Triggers subscription activation if this was a first-charge flow.
 
 **Acceptance Criteria:**
-- [ ] Callback verified via Nomba signature before processing
-- [ ] Card token, last4, brand, exp_month, exp_year extracted and persisted
-- [ ] `pending_checkouts` record marked `consumed = true`
-- [ ] If first subscription charge: subscription moved to `active` state
-- [ ] Idempotent: duplicate callback for same reference → no duplicate card record
+- [x] Callback verified via Nomba signature before processing
+- [x] Card token, last4, brand, exp_month, exp_year extracted and persisted
+- [x] `pending_checkouts` record marked `consumed = true`
+- [x] If first subscription charge: subscription moved to `active` state
+- [x] Idempotent: duplicate callback for same reference → no duplicate card record
 
 **Test Requirements:**
-- [ ] Integration test: valid callback → payment method created; duplicate → idempotent
+- [x] Integration test: valid callback → payment method created; duplicate → idempotent
 
 **Estimated Time:** 1.5 hours
 
@@ -905,13 +905,13 @@ Implement `buildProrationLineItems(prorationResult, oldPlan, newPlan)` that conv
 Extend the proration library to correctly handle annual billing interval plans, including leap-year day counts and mid-year upgrades. Annual plans have longer periods so proration credit amounts are significant — correctness is critical.
 
 **Acceptance Criteria:**
-- [ ] Annual period = exact calendar days between start and end (not 365 flat)
-- [ ] Leap year periods (366 days) handled correctly
-- [ ] Upgrade from monthly to annual mid-cycle: daily rate derived from monthly amount × 12 / annual days
-- [ ] All existing proration tests still pass
+- [x] Annual period = exact calendar days between start and end (not 365 flat)
+- [x] Leap year periods (366 days) handled correctly
+- [x] Upgrade from monthly to annual mid-cycle: daily rate derived from monthly amount × 12 / annual days
+- [x] All existing proration tests still pass
 
 **Test Requirements:**
-- [ ] Unit tests: annual plan cancel on day 1, day 182, day 364; leap year period; monthly-to-annual upgrade
+- [x] Unit tests: annual plan cancel on day 1, day 182, day 364; leap year period; monthly-to-annual upgrade
 
 **Estimated Time:** 1 hour
 
@@ -998,11 +998,11 @@ Implement `executeInvoiceCharge(invoice, paymentMethod)` that calls the Nomba ch
 Implement a cron-like scheduler (`src/jobs/billing-scheduler.ts`) that runs daily, queries for subscriptions whose `current_period_end <= NOW()`, generates and charges invoices for each. Uses PostgreSQL advisory locks to prevent concurrent runs across app instances.
 
 **Acceptance Criteria:**
-- [ ] Scheduler runs at configurable time (default 06:00 WAT)
-- [ ] PostgreSQL advisory lock acquired before processing; released after
-- [ ] Processes subscriptions in batches of 50; handles errors per-subscription without halting the run
-- [ ] Each successful billing cycle updates `current_period_start/end` to next period
-- [ ] `billing_runs` table logs start time, end time, count processed, count failed
+- [x] Scheduler runs at configurable time (default 06:00 WAT)
+- [x] PostgreSQL advisory lock acquired before processing; released after
+- [x] Processes subscriptions in batches of 50; handles errors per-subscription without halting the run
+- [x] Each successful billing cycle updates `current_period_start/end` to next period
+- [x] `billing_runs` table logs start time, end time, count processed, count failed
 
 **Test Requirements:**
 - [ ] Integration test: two scheduler instances start simultaneously → only one acquires lock and processes
@@ -1164,11 +1164,11 @@ When `use_backup_on_first_failure = true` and the first charge attempt fails, th
 Implement the dunning job worker that runs every hour, queries `dunning_attempts` where `scheduled_at <= NOW() AND status = 'scheduled'`, executes each charge, and updates attempt status. On max attempts exhausted, triggers the final action (cancel or suspend) per policy.
 
 **Acceptance Criteria:**
-- [ ] Worker queries and processes due attempts in batches
-- [ ] Successful attempt: invoice paid, subscription → `active`, remaining attempts cancelled
-- [ ] Failed attempt: attempt status → `failed`; if max attempts reached → `finalAction` applied
-- [ ] `finalAction = cancel`: subscription → `cancelled` with reason `dunning_exhausted`
-- [ ] `finalAction = suspend`: subscription → `past_due`
+- [x] Worker queries and processes due attempts in batches
+- [x] Successful attempt: invoice paid, subscription → `active`, remaining attempts cancelled
+- [x] Failed attempt: attempt status → `failed`; if max attempts reached → `finalAction` applied
+- [x] `finalAction = cancel`: subscription → `cancelled` with reason `dunning_exhausted`
+- [x] `finalAction = suspend`: subscription → `past_due`
 - [ ] Outbound webhook `subscription.dunning_failed` fired at exhaustion
 
 **Test Requirements:**
@@ -1237,11 +1237,11 @@ Implement `GET` and `PATCH /v1/dunning/policy` allowing tenants to customise the
 Implement `POST /v1/webhooks/nomba` as the inbound webhook receiver. Verifies the HMAC-SHA256 signature from Nomba using the raw request body before any parsing. Rejects unsigned or tampered payloads with 401. This is the security perimeter for all Nomba events.
 
 **Acceptance Criteria:**
-- [ ] Raw body preserved for signature computation (no pre-parsing)
-- [ ] `X-Nomba-Signature` header extracted and verified via `crypto.timingSafeEqual`
-- [ ] Invalid signature → 401 logged with raw payload hash for debugging
-- [ ] Valid signature → 200 acknowledged immediately; processing happens async
-- [ ] Webhook secret configurable per tenant via `tenants.nomba_webhook_secret`
+- [x] Raw body preserved for signature computation (no pre-parsing)
+- [x] `X-Nomba-Signature` header extracted and verified via `crypto.timingSafeEqual`
+- [x] Invalid signature → 401 logged with raw payload hash for debugging
+- [x] Valid signature → 200 acknowledged immediately; processing happens async
+- [x] Webhook secret configurable per tenant via `tenants.nomba_webhook_secret`
 
 **Test Requirements:**
 - [ ] Unit test: valid HMAC → passes; tampered body → 401; missing header → 401
@@ -1260,10 +1260,10 @@ Implement `POST /v1/webhooks/nomba` as the inbound webhook receiver. Verifies th
 After signature verification, check if the Nomba event ID has already been processed (idempotency table). Route new events to the correct domain handler based on event type. Log unrecognised event types to a dead-letter table for inspection without crashing.
 
 **Acceptance Criteria:**
-- [ ] `webhook_events` table: id, nomba_event_id (unique), event_type, payload (JSONB), processed_at, tenant_id
-- [ ] Duplicate `nomba_event_id` → 200 (already processed, no reprocessing)
-- [ ] Routing map: `charge.success` → charge success handler, `charge.failure` → charge failure handler, `refund.completed` → refund handler
-- [ ] Unknown event type → logged to `dead_letter_webhooks`; returns 200
+- [x] `webhook_events` table: id, nomba_event_id (unique), event_type, payload (JSONB), processed_at, tenant_id
+- [x] Duplicate `nomba_event_id` → 200 (already processed, no reprocessing)
+- [x] Routing map: `charge.success` → charge success handler, `charge.failure` → charge failure handler, `refund.completed` → refund handler
+- [x] Unknown event type → logged to `dead_letter_webhooks`; returns 200
 
 **Test Requirements:**
 - [ ] Unit test: duplicate event ID → no reprocessing; unknown type → dead letter
@@ -1282,10 +1282,10 @@ After signature verification, check if the Nomba event ID has already been proce
 Implement the domain handlers for `charge.success` and `charge.failure` Nomba events. Success finalises the invoice and activates/reactivates the subscription. Failure triggers dunning scheduling. Both handlers are idempotent by checking current invoice and subscription state before acting.
 
 **Acceptance Criteria:**
-- [ ] `charge.success`: invoice → `paid`; subscription → `active` if was `past_due`/`incomplete`
-- [ ] `charge.failure`: invoice remains `open`; dunning scheduling triggered for subscription
-- [ ] Both handlers: no-op if invoice already in terminal state (`paid`/`void`)
-- [ ] `charge_records` table updated with Nomba charge ID on success
+- [x] `charge.success`: invoice → `paid`; subscription → `active` if was `past_due`/`incomplete`
+- [x] `charge.failure`: invoice remains `open`; dunning scheduling triggered for subscription
+- [x] Both handlers: no-op if invoice already in terminal state (`paid`/`void`)
+- [x] `charge_records` table updated with Nomba charge ID on success
 
 **Test Requirements:**
 - [ ] Integration test: success handler idempotent; failure handler triggers dunning once
@@ -1308,11 +1308,11 @@ Implement the domain handlers for `charge.success` and `charge.failure` Nomba ev
 Implement CRUD for tenants to register URLs to receive outbound webhook events. Each endpoint specifies which event types to subscribe to and stores a signing secret. Supports multiple endpoints per tenant (e.g. staging and production).
 
 **Acceptance Criteria:**
-- [ ] `webhook_endpoints` table: id, tenant_id, url, event_types (text[]), signing_secret, enabled, created_at
-- [ ] `POST /v1/webhooks/endpoints` creates endpoint; auto-generates signing secret if not provided
-- [ ] `GET /v1/webhooks/endpoints` lists all endpoints for tenant
-- [ ] `PATCH /v1/webhooks/endpoints/:id` updates url, event_types, enabled
-- [ ] `DELETE /v1/webhooks/endpoints/:id` removes endpoint
+- [x] `webhook_endpoints` table: id, tenant_id, url, event_types (text[]), signing_secret, enabled, created_at
+- [x] `POST /v1/webhooks/endpoints` creates endpoint; auto-generates signing secret if not provided
+- [x] `GET /v1/webhooks/endpoints` lists all endpoints for tenant
+- [x] `PATCH /v1/webhooks/endpoints/:id` updates url, event_types, enabled
+- [x] `DELETE /v1/webhooks/endpoints/:id` removes endpoint
 
 **Test Requirements:**
 - [ ] Integration test: register endpoint; update event types; verify signing secret returned only at creation
@@ -1331,10 +1331,10 @@ Implement CRUD for tenants to register URLs to receive outbound webhook events. 
 Implement the outbound webhook delivery worker. For each event, fan out to all matching tenant endpoints, sign the payload with HMAC-SHA256, POST to the URL, and record the result in a `webhook_deliveries` audit log. Failed deliveries retry with exponential backoff: 1min, 5min, 30min, 2hr, 8hr.
 
 **Acceptance Criteria:**
-- [ ] Payload signed: `X-Recurva-Signature: sha256=<hmac>` header on every delivery
-- [ ] Delivery attempt logged: endpoint_id, event_type, payload, response_status, response_body (truncated to 1KB), duration_ms, attempt_number
-- [ ] Non-2xx response → scheduled retry using backoff schedule
-- [ ] After 5 failed attempts → delivery marked `failed`; no further retries
+- [x] Payload signed: `X-Recurva-Signature: sha256=<hmac>` header on every delivery
+- [x] Delivery attempt logged: endpoint_id, event_type, payload, response_status, response_body (truncated to 1KB), duration_ms, attempt_number
+- [x] Non-2xx response → scheduled retry using backoff schedule
+- [x] After 5 failed attempts → delivery marked `failed`; no further retries
 - [ ] `manual_retry` resets attempt count to 0 for a specific delivery
 
 **Test Requirements:**
@@ -1354,10 +1354,10 @@ Implement the outbound webhook delivery worker. For each event, fan out to all m
 Implement `POST /v1/webhooks/deliveries/:id/retry` that re-queues a failed delivery for immediate re-attempt. Also implement `GET /v1/webhooks/deliveries` for tenants to inspect delivery history with filtering by endpoint, event type, and status.
 
 **Acceptance Criteria:**
-- [ ] Retry endpoint: delivery must be in `failed` status; re-queues with attempt_number reset
-- [ ] `GET /v1/webhooks/deliveries` supports `?endpoint_id=&event_type=&status=`
-- [ ] Delivery list paginated; shows latest attempt details
-- [ ] 404 if delivery belongs to different tenant
+- [x] Retry endpoint: delivery must be in `failed` status; re-queues with attempt_number reset
+- [x] `GET /v1/webhooks/deliveries` supports `?endpoint_id=&event_type=&status=`
+- [x] Delivery list paginated; shows latest attempt details
+- [x] 404 if delivery belongs to different tenant
 
 **Test Requirements:**
 - [ ] Integration test: retry failed delivery → re-attempts; 404 for cross-tenant access
@@ -1380,11 +1380,11 @@ Implement `POST /v1/webhooks/deliveries/:id/retry` that re-queues a failed deliv
 Implement magic-link email authentication for the customer self-serve portal. `POST /v1/portal/auth/request` sends a time-limited JWT link to the customer's email. `GET /v1/portal/auth/verify?token=...` validates the token and returns a session JWT scoped to that customer and tenant.
 
 **Acceptance Criteria:**
-- [ ] Magic link token: JWT, 15-minute expiry, signed with `JWT_SECRET`, payload includes `customerId` and `tenantId`
-- [ ] Session JWT: 24-hour expiry; different claims from magic link token
+- [x] Magic link token: JWT, 15-minute expiry, signed with `JWT_SECRET`, payload includes `customerId` and `tenantId`
+- [x] Session JWT: 24-hour expiry; different claims from magic link token
 - [ ] Email dispatch via configurable SMTP (`SMTP_*` env vars)
 - [ ] Rate limit: 3 magic link requests per customer per 10 minutes
-- [ ] Invalid/expired token → 401
+- [x] Invalid/expired token → 401
 
 **Test Requirements:**
 - [ ] Unit test: expired token → 401; valid token → session JWT; rate limit enforced
@@ -1403,10 +1403,10 @@ Implement magic-link email authentication for the customer self-serve portal. `P
 Implement portal read endpoints: `GET /v1/portal/subscriptions` (customer's subscriptions), `GET /v1/portal/invoices` (invoice history), and `GET /v1/portal/invoices/:id/download` (PDF or JSON invoice). All scoped to the authenticated customer's `customerId`.
 
 **Acceptance Criteria:**
-- [ ] `GET /v1/portal/subscriptions` returns all subscriptions with plan name, status, next billing date
-- [ ] `GET /v1/portal/invoices` returns paginated invoice history with status and total
-- [ ] `GET /v1/portal/invoices/:id/download` returns invoice as JSON (PDF out of scope for MVP)
-- [ ] All endpoints reject tokens from other customers
+- [x] `GET /v1/portal/subscriptions` returns all subscriptions with plan name, status, next billing date
+- [x] `GET /v1/portal/invoices` returns paginated invoice history with status and total
+- [x] `GET /v1/portal/invoices/:id/download` returns invoice as JSON (PDF out of scope for MVP)
+- [x] All endpoints reject tokens from other customers
 
 **Test Requirements:**
 - [ ] Integration test: customer A cannot access customer B's invoices
@@ -1425,11 +1425,11 @@ Implement portal read endpoints: `GET /v1/portal/subscriptions` (customer's subs
 Expose subscription management actions in the portal: plan upgrade/downgrade, pause, resume, and cancel. These call the same service layer as the tenant API, but are scoped to the authenticated customer and limited to their own subscriptions.
 
 **Acceptance Criteria:**
-- [ ] `POST /v1/portal/subscriptions/:id/cancel` (end-of-period only from portal)
-- [ ] `POST /v1/portal/subscriptions/:id/pause` and `/resume`
-- [ ] `POST /v1/portal/subscriptions/:id/change-plan` (upgrade/downgrade)
-- [ ] Customer cannot cancel another customer's subscription → 404
-- [ ] Immediate cancellation disabled from portal (tenants must do this via API)
+- [x] `POST /v1/portal/subscriptions/:id/cancel` (end-of-period only from portal)
+- [x] `POST /v1/portal/subscriptions/:id/pause` and `/resume`
+- [x] `POST /v1/portal/subscriptions/:id/change-plan` (upgrade/downgrade)
+- [x] Customer cannot cancel another customer's subscription → 404
+- [x] Immediate cancellation disabled from portal (tenants must do this via API)
 
 **Test Requirements:**
 - [ ] Integration test: portal customer cancels own subscription end-of-period; cannot cancel others'
@@ -1452,10 +1452,10 @@ Expose subscription management actions in the portal: plan upgrade/downgrade, pa
 Implement `POST /v1/dashboard/auth` that accepts an email + password for the tenant admin user (credentials stored during tenant registration), validates them, and returns a dashboard-scoped JWT. Different from API key auth — this is for human operators, not machine integrations.
 
 **Acceptance Criteria:**
-- [ ] `tenant_admin_credentials` table: tenant_id, email, password_hash (bcrypt)
-- [ ] `POST /v1/dashboard/auth` returns 24-hour JWT with `tenantId` and `role: admin` claims
-- [ ] Invalid credentials → 401 with no enumeration hint
-- [ ] Dashboard JWT middleware validates token and injects `c.var.tenant` same as API key middleware
+- [x] `tenant_admin_credentials` table: tenant_id, email, password_hash (bcrypt)
+- [x] `POST /v1/dashboard/auth` returns 24-hour JWT with `tenantId` and `role: admin` claims
+- [x] Invalid credentials → 401 with no enumeration hint
+- [x] Dashboard JWT middleware validates token and injects `c.var.tenant` same as API key middleware
 
 **Test Requirements:**
 - [ ] Unit test: valid creds → JWT; invalid → 401; JWT accepted by dashboard middleware
@@ -1474,11 +1474,11 @@ Implement `POST /v1/dashboard/auth` that accepts an email + password for the ten
 Implement `GET /v1/dashboard/metrics` returning the core SaaS health metrics: active subscriber count, MRR (sum of active subscription monthly-normalised amounts), and monthly churn rate. All computed from live data, cached for 5 minutes via in-memory cache.
 
 **Acceptance Criteria:**
-- [ ] `activeSubscribers`: count of subscriptions with status `active`
-- [ ] `mrr`: sum of active subscriptions' monthly-equivalent amounts in NGN (annual plans divided by 12); multi-currency reported as-is per currency
-- [ ] `churnRate`: (subscriptions cancelled this month / subscriptions active at month start) × 100
+- [x] `activeSubscribers`: count of subscriptions with status `active`
+- [x] `mrr`: sum of active subscriptions' monthly-equivalent amounts in NGN (annual plans divided by 12); multi-currency reported as-is per currency
+- [x] `churnRate`: (subscriptions cancelled this month / subscriptions active at month start) × 100
 - [ ] Response cached for 5 minutes to avoid expensive queries on every render
-- [ ] Metrics broken down by currency when multi-currency present
+- [x] Metrics broken down by currency when multi-currency present
 
 **Test Requirements:**
 - [ ] Unit test: MRR calculation with annual and monthly plans; churn rate formula
@@ -1497,8 +1497,8 @@ Implement `GET /v1/dashboard/metrics` returning the core SaaS health metrics: ac
 Implement `GET /v1/dashboard/failed-payments` (recent failed charges list) and add `dunningRecoveryRate` to the metrics endpoint. Recovery rate = (subscriptions recovered from `past_due` to `active` this month) / (subscriptions that entered `past_due` this month).
 
 **Acceptance Criteria:**
-- [ ] Failed payments list: customer name, amount, currency, plan, failed_at, attempt_count; paginated, last 30 days
-- [ ] `dunningRecoveryRate` returned as percentage (0–100)
+- [x] Failed payments list: customer name, amount, currency, plan, failed_at, attempt_count; paginated, last 30 days
+- [x] `dunningRecoveryRate` returned as percentage (0–100)
 - [ ] `GET /v1/dashboard/metrics/growth` returns new subscriber counts grouped by day for last 30 days
 
 **Test Requirements:**
@@ -1522,10 +1522,10 @@ Implement `GET /v1/dashboard/failed-payments` (recent failed charges list) and a
 Implement `GET /v1/reports/revenue` returning total revenue by period (monthly/daily), broken down by plan and currency. Accepts `from`, `to`, and `interval` query params. Based on `paid` invoices only.
 
 **Acceptance Criteria:**
-- [ ] Filters: `from` (ISO date), `to` (ISO date), `interval=monthly|daily`, `currency`
-- [ ] Response: array of `{ period, currency, plan_id, plan_name, amount, invoice_count }`
-- [ ] Only `paid` invoices included; `void` excluded
-- [ ] Results sorted by period ascending
+- [x] Filters: `from` (ISO date), `to` (ISO date), `interval=monthly|daily`, `currency`
+- [x] Response: array of `{ period, currency, plan_id, plan_name, amount, invoice_count }`
+- [x] Only `paid` invoices included; `void` excluded
+- [x] Results sorted by period ascending
 
 **Test Requirements:**
 - [ ] Integration test: 3 months of paid invoices → correct monthly totals per plan
@@ -1544,9 +1544,9 @@ Implement `GET /v1/reports/revenue` returning total revenue by period (monthly/d
 Implement `GET /v1/reports/cohorts` returning subscriber retention by monthly cohort (customers grouped by their first subscription month, tracked across subsequent months). Also implement `GET /v1/reports/clv` returning average customer lifetime value by plan.
 
 **Acceptance Criteria:**
-- [ ] Cohort report: `{ cohort: "2025-01", months: [100, 82, 74, ...] }` (count retained per month)
-- [ ] CLV report: average total paid per customer, grouped by plan, for customers with cancelled subscriptions
-- [ ] Both reports support `from`/`to` date filters
+- [x] Cohort report: `{ cohort: "2025-01", months: [100, 82, 74, ...] }` (count retained per month)
+- [x] CLV report: average total paid per customer, grouped by plan, for customers with cancelled subscriptions
+- [x] Both reports support `from`/`to` date filters
 - [ ] Reports execute in under 2 seconds for 12 months of data (add indexes if needed)
 
 **Test Requirements:**
@@ -1566,10 +1566,10 @@ Implement `GET /v1/reports/cohorts` returning subscriber retention by monthly co
 Implement `GET /v1/reports/dunning` returning dunning attempt outcomes by month (success, failure, exhausted counts) and recovery amounts. Also implement `GET /v1/reports/reconciliation` matching invoices to charge records and flagging discrepancies.
 
 **Acceptance Criteria:**
-- [ ] Dunning report: `{ month, attempts, recovered, failed, exhausted, recoveredAmount }`
-- [ ] Reconciliation report: flags invoices with status `paid` but no matching `charge_records` entry
-- [ ] Reconciliation flags invoices with `charge_records` entries but still `open` status
-- [ ] Both reports accept `from`/`to` date range
+- [x] Dunning report: `{ month, attempts, recovered, failed, exhausted, recoveredAmount }`
+- [x] Reconciliation report: flags invoices with status `paid` but no matching `charge_records` entry
+- [x] Reconciliation flags invoices with `charge_records` entries but still `open` status
+- [x] Both reports accept `from`/`to` date range
 
 **Test Requirements:**
 - [ ] Unit test: reconciliation correctly identifies mismatches in test data
@@ -1592,10 +1592,10 @@ Implement `GET /v1/reports/dunning` returning dunning attempt outcomes by month 
 Write comprehensive API reference documentation in markdown covering all endpoints: authentication, request/response schemas, error codes, and example cURL calls. Organised by resource (tenants, plans, subscriptions, etc.). This is the primary external-facing document for API consumers.
 
 **Acceptance Criteria:**
-- [ ] Every endpoint documented: method, path, auth requirement, request body, response body, error codes
-- [ ] Example cURL request and response for every endpoint
-- [ ] Error code table with code, HTTP status, and plain-English description
-- [ ] Hosted at `/docs/api-reference.md` in repository
+- [x] Every endpoint documented: method, path, auth requirement, request body, response body, error codes
+- [x] Example cURL request and response for every endpoint
+- [x] Error code table with code, HTTP status, and plain-English description
+- [x] Hosted at `/docs/api-reference.md` in repository
 
 **Estimated Time:** 2 hours
 
@@ -1611,11 +1611,11 @@ Write comprehensive API reference documentation in markdown covering all endpoin
 Create a complete Postman collection covering all API endpoints, with environment variables for `BASE_URL` and `API_KEY`, pre-request scripts for auth, and test scripts that assert status codes. Exportable as JSON for easy import.
 
 **Acceptance Criteria:**
-- [ ] All endpoints present with example request bodies
-- [ ] Environment template with `base_url`, `api_key`, `customer_id` variables
-- [ ] Collection-level pre-request script sets `Authorization` header from `api_key` variable
-- [ ] At least one test script per request asserting correct status code
-- [ ] Exported and committed as `docs/recurva.postman_collection.json`
+- [x] All endpoints present with example request bodies
+- [x] Environment template with `base_url`, `api_key`, `customer_id` variables
+- [x] Collection-level pre-request script sets `Authorization` header from `api_key` variable
+- [x] At least one test script per request asserting correct status code
+- [x] Exported and committed as `docs/recurva.postman_collection.json`
 
 **Estimated Time:** 1.5 hours
 
@@ -1631,9 +1631,9 @@ Create a complete Postman collection covering all API endpoints, with environmen
 Write three documents: (1) integration quickstart guide showing how to go from API key to first subscription charge in 10 minutes, (2) webhook event catalog listing all outbound events with payload schemas, (3) README with architecture overview, local dev setup, and deployment guide.
 
 **Acceptance Criteria:**
-- [ ] Quickstart: register tenant → create plan → create customer → create subscription (end-to-end code examples in JavaScript)
-- [ ] Webhook catalog: event name, trigger, full payload JSON example for every event
-- [ ] README: architecture diagram description, `docker compose up` to running, env var table, CI/CD pipeline description
+- [x] Quickstart: register tenant → create plan → create customer → create subscription (end-to-end code examples in JavaScript)
+- [x] Webhook catalog: event name, trigger, full payload JSON example for every event (in API reference)
+- [x] README: architecture diagram description, `docker compose up` to running, env var table, CI/CD pipeline description
 - [ ] All docs lint with no broken internal links
 
 **Estimated Time:** 1.5 hours

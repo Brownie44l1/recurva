@@ -6,6 +6,8 @@ export function calculateProration(
   cycleStart: Date,
   changeDate: Date,
   cycleEnd: Date,
+  oldPlanIntervalDays?: number,
+  newPlanIntervalDays?: number,
 ): ProrationResult {
   const daysInPeriod = Math.ceil((cycleEnd.getTime() - cycleStart.getTime()) / 86400000);
   const daysRemaining = Math.ceil((cycleEnd.getTime() - changeDate.getTime()) / 86400000);
@@ -24,8 +26,11 @@ export function calculateProration(
     };
   }
 
-  const dailyOldRate = Math.floor(oldPlanAmount / daysInPeriod);
-  const dailyNewRate = Math.floor(newPlanAmount / daysInPeriod);
+  const oldPeriodDays = oldPlanIntervalDays ?? daysInPeriod;
+  const newPeriodDays = newPlanIntervalDays ?? daysInPeriod;
+
+  const dailyOldRate = Math.floor(oldPlanAmount / oldPeriodDays);
+  const dailyNewRate = Math.floor(newPlanAmount / newPeriodDays);
 
   const creditAmount = Math.floor(dailyOldRate * daysRemaining);
   const chargeAmount = Math.floor(dailyNewRate * daysRemaining);

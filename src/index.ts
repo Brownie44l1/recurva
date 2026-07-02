@@ -2,13 +2,13 @@ import { config } from './config';
 import { logger } from './logger';
 import { createApp } from './api/app';
 import { getDb, closeDb } from './db/client';
-import { startDunningScheduler, stopDunningScheduler } from './scheduler/dunning-runner';
+import { startSchedulers } from './scheduler/runner';
 
 const app = createApp();
 
 getDb();
 
-startDunningScheduler();
+startSchedulers();
 
 const server = Bun.serve({
   port: config.PORT,
@@ -20,7 +20,6 @@ logger.info({ port: config.PORT, env: config.NODE_ENV }, 'Recurva listening');
 
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down');
-  stopDunningScheduler();
   server.stop();
   await closeDb();
   process.exit(0);
@@ -28,7 +27,6 @@ process.on('SIGTERM', async () => {
 
 process.on('SIGINT', async () => {
   logger.info('SIGINT received, shutting down');
-  stopDunningScheduler();
   server.stop();
   await closeDb();
   process.exit(0);

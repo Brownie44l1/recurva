@@ -15,7 +15,7 @@ export const tenantAuthMiddleware = createMiddleware(async (c, next) => {
   const authHeader = c.req.header('Authorization');
 
   if (!authHeader?.startsWith('Bearer ')) {
-    throw new UnauthorizedError('Missing API key. Provide it as Authorization: Bearer rk_live_...');
+    throw new UnauthorizedError('Missing API key. Provide it as Authorization: Bearer rcv_live_...');
   }
 
   const rawKey = authHeader.slice(7);

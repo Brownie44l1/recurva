@@ -71,4 +71,73 @@ describe('Proration Service', () => {
     expect(result.creditAmount).toBeGreaterThanOrEqual(0);
     expect(result.chargeAmount).toBeGreaterThanOrEqual(0);
   });
+
+  describe('annual proration edge cases', () => {
+    it('calculates correct days for annual period', () => {
+      const cycleStart = new Date('2026-01-01');
+      const changeDate = new Date('2026-07-02');
+      const cycleEnd = new Date('2027-01-01');
+
+      const result = calculateProration(60000, 0, cycleStart, changeDate, cycleEnd);
+      expect(result.daysInPeriod).toBe(365);
+      expect(result.daysRemaining).toBe(183);
+      expect(result.creditAmount).toBeGreaterThan(0);
+    });
+
+    it('handles leap year annual period (366 days)', () => {
+      const cycleStart = new Date('2024-01-01');
+      const changeDate = new Date('2024-07-01');
+      const cycleEnd = new Date('2025-01-01');
+
+      const result = calculateProration(60000, 0, cycleStart, changeDate, cycleEnd);
+      expect(result.daysInPeriod).toBe(366);
+      expect(result.daysRemaining).toBe(184);
+    });
+
+    it('handles monthly to annual upgrade with interval normalization', () => {
+      const cycleStart = new Date('2026-06-01');
+      const changeDate = new Date('2026-06-16');
+      const cycleEnd = new Date('2026-07-01');
+
+      const monthlyAmount = 5000;
+      const annualAmount = 50000;
+      const monthlyDays = 30;
+      const annualDays = 365;
+
+      const result = calculateProration(
+        monthlyAmount, annualAmount,
+        cycleStart, changeDate, cycleEnd,
+        monthlyDays, annualDays,
+      );
+
+      const expectedDailyOld = Math.floor(monthlyAmount / monthlyDays);
+      const expectedDailyNew = Math.floor(annualAmount / annualDays);
+      expect(result.dailyOldRate).toBe(expectedDailyOld);
+      expect(result.dailyNewRate).toBe(expectedDailyNew);
+      expect(result.creditAmount).toBe(Math.floor(expectedDailyOld * result.daysRemaining));
+      expect(result.chargeAmount).toBe(Math.floor(expectedDailyNew * result.daysRemaining));
+    });
+
+    it('handles annual plan cancel on first day', () => {
+      const cycleStart = new Date('2026-01-01');
+      const changeDate = new Date('2026-01-01');
+      const cycleEnd = new Date('2027-01-01');
+
+      const result = calculateProration(50000, 0, cycleStart, changeDate, cycleEnd);
+      expect(result.daysInPeriod).toBe(365);
+      expect(result.daysRemaining).toBe(365);
+      expect(result.creditAmount).toBeGreaterThan(0);
+    });
+
+    it('handles annual plan cancel on day 364', () => {
+      const cycleStart = new Date('2026-01-01');
+      const changeDate = new Date('2026-12-31');
+      const cycleEnd = new Date('2027-01-01');
+
+      const result = calculateProration(50000, 0, cycleStart, changeDate, cycleEnd);
+      expect(result.daysInPeriod).toBe(365);
+      expect(result.daysRemaining).toBe(1);
+      expect(result.creditAmount).toBeGreaterThan(0);
+    });
+  });
 });
