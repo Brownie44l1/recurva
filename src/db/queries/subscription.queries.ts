@@ -122,6 +122,20 @@ export async function updateSubscriptionPaymentMethod(
   return row!;
 }
 
+export async function restoreCreditBalance(
+  sql: Sql,
+  subscriptionId: string,
+  amount: number,
+): Promise<Subscription> {
+  const [row] = await sql<Subscription[]>`
+    UPDATE subscriptions
+    SET credit_balance = credit_balance + ${amount}, updated_at = NOW()
+    WHERE id = ${subscriptionId}
+    RETURNING *
+  `;
+  return row!;
+}
+
 export async function decrementCreditBalance(
   sql: Sql,
   subscriptionId: string,

@@ -1,6 +1,7 @@
 import type { Sql } from 'postgres';
 import type { Invoice, InvoiceLineItem, BuildInvoiceOptions } from './invoice.types';
 import * as queries from '../../db/queries/invoice.queries';
+import * as subscriptionQueries from '../../db/queries/subscription.queries';
 import * as planQueries from '../../db/queries/plan.queries';
 import * as usageQueries from '../../db/queries/usage.queries';
 import * as couponQueries from '../../db/queries/coupon.queries';
@@ -148,6 +149,18 @@ export async function getInvoice(sql: Sql, tenantId: string, invoiceId: string):
 }
 
 export async function voidInvoice(sql: Sql, tenantId: string, invoiceId: string): Promise<Invoice> {
+  const current = await queries.findInvoiceById(sql, tenantId, invoiceId);
+  if (!current) throw new NotFoundError('Invoice', invoiceId);
+
+  const wasPaid = current.status === 'paid';
+  if (wasPaid) {
+    const creditLineItem = current.lineItems.find((li) => li.type === 'credit' && li.amount < 0);
+    if (creditLineItem) {
+      const creditToRestore = Math.abs(creditLineItem.amount);
+      await subscriptionQueries.restoreCreditBalance(sql, current.subscriptionId, creditToRestore);
+    }
+  }
+
   const invoice = await queries.updateInvoiceStatus(sql, invoiceId, 'void');
   const lineItems = (await queries.findInvoiceById(sql, tenantId, invoiceId))?.lineItems ?? [];
   return { ...invoice, lineItems };
