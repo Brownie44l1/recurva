@@ -120,6 +120,11 @@ async function handleChargeSuccess(payload: NombaWebhookPayload, sql: Sql): Prom
 
     await invoiceQueries.updateInvoiceStatus(s, data.invoiceId!, 'paid');
 
+    const creditUsed = invoice.total - invoice.amountDue;
+    if (creditUsed > 0) {
+      await subscriptionQueries.decrementCreditBalance(s, invoice.subscriptionId, creditUsed);
+    }
+
     const subscription = await subscriptionQueries.findSubscriptionById(s, data.tenantId!, invoice.subscriptionId);
     if (subscription && (subscription.status === 'past_due' || subscription.status === 'incomplete')) {
       await transitionState(s, data.tenantId!, invoice.subscriptionId, 'PAYMENT_SUCCESS', {

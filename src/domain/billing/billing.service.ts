@@ -14,6 +14,18 @@ function asSql(tx: TransactionSql): Sql {
   return tx as unknown as Sql;
 }
 
+async function decrementCreditForInvoice(
+  sql: Sql,
+  subscriptionId: string,
+  total: number,
+  amountDue: number,
+): Promise<void> {
+  const creditUsed = total - amountDue;
+  if (creditUsed > 0) {
+    await subscriptionQueries.decrementCreditBalance(sql, subscriptionId, creditUsed);
+  }
+}
+
 export async function billSubscription(
   sql: Sql,
   tenantId: string,
@@ -35,7 +47,14 @@ export async function billSubscription(
 
     const finalized = await finalizeInvoice(s, tenantId, invoice.id);
 
-    if (finalized.status === 'paid') {
+    if (finalized.amountDue <= 0) {
+      await invoiceQueries.updateInvoiceStatus(s, invoice.id, 'paid');
+      await decrementCreditForInvoice(s, subscription.id, finalized.total, finalized.amountDue);
+
+      const nextPeriodStart = new Date(subscription.currentPeriodEnd);
+      const nextPeriodEnd = new Date(nextPeriodStart.getTime() + (subscription.currentPeriodEnd.getTime() - subscription.currentPeriodStart.getTime()));
+      await subscriptionQueries.updateSubscriptionPeriod(s, tenantId, subscriptionId, nextPeriodStart, nextPeriodEnd);
+
       return { success: true, invoiceId: invoice.id, chargeId: null, status: 'paid' };
     }
 
@@ -47,6 +66,11 @@ export async function billSubscription(
       const { subscription: sub, sideEffects } = await transitionState(s, tenantId, subscriptionId, 'PAYMENT_FAILED', context);
       await executeSideEffects(s, tenantId, sub, sideEffects, context, { invoiceId: invoice.id });
       return { success: false, invoiceId: invoice.id, chargeId: null, status: 'dunning' };
+    }
+
+    const pendingCharge = await invoiceQueries.findPendingChargeForInvoice(s, invoice.id);
+    if (pendingCharge) {
+      return { success: false, invoiceId: invoice.id, chargeId: pendingCharge.id, status: 'failed', failureReason: 'Charge already in progress' };
     }
 
     const charge = await invoiceQueries.insertCharge(s, tenantId, {
@@ -77,6 +101,7 @@ export async function billSubscription(
       });
 
       await invoiceQueries.updateInvoiceStatus(s, invoice.id, 'paid');
+      await decrementCreditForInvoice(s, subscription.id, finalized.total, finalized.amountDue);
 
       const nextPeriodStart = new Date(subscription.currentPeriodEnd);
       const nextPeriodEnd = new Date(nextPeriodStart.getTime() + (subscription.currentPeriodEnd.getTime() - subscription.currentPeriodStart.getTime()));
@@ -109,7 +134,26 @@ export async function retryCharge(
       return { success: false, invoiceId: '', chargeId: null, status: 'failed', failureReason: 'Invoice not found' };
     }
 
-    const subscription = await subscriptionQueries.findSubscriptionById(s, tenantId, invoice.subscriptionId);
+    if (invoice.status !== 'open') {
+      if (invoice.status === 'paid') {
+        return { success: true, invoiceId: invoice.id, chargeId: null, status: 'paid' };
+      }
+      return { success: false, invoiceId: invoice.id, chargeId: null, status: 'failed', failureReason: `Cannot retry invoice in status: ${invoice.status}` };
+    }
+
+    if (invoice.amountDue <= 0) {
+      await invoiceQueries.updateInvoiceStatus(s, invoice.id, 'paid');
+      await decrementCreditForInvoice(s, invoice.subscriptionId, invoice.total, invoice.amountDue);
+      await transitionState(s, tenantId, invoice.subscriptionId, 'PAYMENT_SUCCESS', { actorType: 'system', actorId: 'retry-charge' });
+      return { success: true, invoiceId: invoice.id, chargeId: null, status: 'paid' };
+    }
+
+    const pendingCharge = await invoiceQueries.findPendingChargeForInvoice(s, invoice.id);
+    if (pendingCharge) {
+      return { success: false, invoiceId: invoice.id, chargeId: pendingCharge.id, status: 'failed', failureReason: 'Charge already in progress' };
+    }
+
+    const subscription = await subscriptionQueries.findSubscriptionForUpdate(s, tenantId, invoice.subscriptionId);
     if (!subscription) {
       return { success: false, invoiceId: invoice.id, chargeId: null, status: 'failed', failureReason: 'Subscription not found' };
     }
@@ -121,20 +165,18 @@ export async function retryCharge(
     if (!pm) {
       pm = await paymentMethodQueries.findBackupPaymentMethod(s, tenantId, subscription.customerId);
     }
+
+    if (!pm) {
+      return { success: false, invoiceId: invoice.id, chargeId: null, status: 'failed', failureReason: 'No payment method available' };
+    }
+
     const charge = await invoiceQueries.insertCharge(s, tenantId, {
       customerId: invoice.customerId,
       invoiceId: invoice.id,
-      paymentMethodId: pm?.id ?? null,
+      paymentMethodId: pm.id,
       currency: invoice.currency,
       amount: invoice.amountDue,
     });
-
-    if (!pm) {
-      await invoiceQueries.updateChargeStatus(s, charge.id, 'failed', {
-        failureMessage: 'No payment method available',
-      });
-      return { success: false, invoiceId: invoice.id, chargeId: charge.id, status: 'failed', failureReason: 'No payment method available' };
-    }
 
     try {
       const tenant = await tenantQueries.findTenantById(s, tenantId);
@@ -156,6 +198,7 @@ export async function retryCharge(
       });
 
       await invoiceQueries.updateInvoiceStatus(s, invoice.id, 'paid');
+      await decrementCreditForInvoice(s, subscription.id, invoice.total, invoice.amountDue);
 
       await transitionState(s, tenantId, subscription.id, 'PAYMENT_SUCCESS', { actorType: 'system', actorId: 'retry-charge' });
       return { success: true, invoiceId: invoice.id, chargeId: charge.id, status: 'paid' };
