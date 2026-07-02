@@ -2,12 +2,12 @@ name: Staging Deploy
 
 on:
   push:
-    branches: [dev]
+    branches: [staging]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/dev'
+    if: github.ref == 'refs/heads/staging'
 
     steps:
       - uses: actions/checkout@v4
