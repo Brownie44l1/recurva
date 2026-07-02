@@ -54,7 +54,7 @@ export async function findDueForBilling(sql: Sql, asOf: Date, limit: number = 10
   return sql<Subscription[]>`
     SELECT s.*
     FROM subscriptions s
-    WHERE s.status IN ('active', 'trialing')
+    WHERE s.status IN ('active', 'trialing', 'past_due')
       AND s.current_period_end <= ${asOf}
       AND NOT EXISTS (
         SELECT 1 FROM invoices i
