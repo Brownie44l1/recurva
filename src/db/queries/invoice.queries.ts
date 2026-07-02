@@ -135,6 +135,31 @@ export async function updateChargeStatus(sql: Sql, chargeId: string, status: str
   return row!;
 }
 
+export async function findChargeByNombaReferenceWithLock(sql: Sql, nombaReference: string): Promise<Charge | null> {
+  const [row] = await sql<Charge[]>`
+    SELECT * FROM charges WHERE nomba_reference = ${nombaReference} LIMIT 1
+    FOR UPDATE
+  `;
+  return row ?? null;
+}
+
+export async function updateChargeByNombaReference(sql: Sql, nombaReference: string, updates: {
+  status?: string;
+  amountRefunded?: number;
+  failureMessage?: string;
+}): Promise<Charge | null> {
+  const [row] = await sql<Charge[]>`
+    UPDATE charges SET
+      status = COALESCE(${updates.status ?? null}, status),
+      amount_refunded = COALESCE(${updates.amountRefunded ?? null}, amount_refunded),
+      failure_message = COALESCE(${updates.failureMessage ?? null}, failure_message),
+      updated_at = NOW()
+    WHERE nomba_reference = ${nombaReference}
+    RETURNING *
+  `;
+  return row ?? null;
+}
+
 export async function findOpenInvoiceForSubscription(sql: Sql, subscriptionId: string): Promise<Invoice | null> {
   const [row] = await sql<Invoice[]>`
     SELECT * FROM invoices
