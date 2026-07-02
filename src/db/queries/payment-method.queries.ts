@@ -1,5 +1,6 @@
 import type { Sql } from 'postgres';
 import type { PaymentMethod } from '../../domain/payment-method/payment-method.types';
+import { withTransaction } from '../transaction';
 
 export async function insertPaymentMethod(sql: Sql, tenantId: string, customerId: string, input: {
   nombaToken: string;
@@ -50,14 +51,14 @@ export async function findBackupPaymentMethod(sql: Sql, tenantId: string, custom
 }
 
 export async function promoteToPrimary(sql: Sql, customerId: string, methodId: string): Promise<void> {
-  await sql.begin(async (tx) => {
+  await withTransaction(sql, async (tx) => {
     await tx`UPDATE payment_methods SET is_primary = FALSE WHERE customer_id = ${customerId}`;
     await tx`UPDATE payment_methods SET is_primary = TRUE WHERE id = ${methodId}`;
   });
 }
 
 export async function setBackup(sql: Sql, customerId: string, methodId: string): Promise<void> {
-  await sql.begin(async (tx) => {
+  await withTransaction(sql, async (tx) => {
     await tx`UPDATE payment_methods SET is_backup = FALSE WHERE customer_id = ${customerId}`;
     await tx`UPDATE payment_methods SET is_backup = TRUE WHERE id = ${methodId}`;
   });

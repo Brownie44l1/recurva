@@ -7,11 +7,19 @@ import * as customerQueries from '../../src/db/queries/customer.queries';
 import * as planQueries from '../../src/db/queries/plan.queries';
 import { config } from '../../src/config';
 import * as crypto from 'crypto';
+import { createApp } from '../../src/api/app';
 
 const NOMBA_WEBHOOK_SECRET = config.NOMBA_WEBHOOK_SECRET || 'whsec_test_nomba_secret';
 
-function signPayload(payload: string): string {
-  return crypto.createHmac('sha256', NOMBA_WEBHOOK_SECRET).update(payload).digest('hex');
+function signPayload(payload: { event: string; data: any }): string {
+  const canonical = [
+    payload.event,
+    payload.data.orderReference,
+    payload.data.transactionId,
+    String(payload.data.amount),
+    payload.data.currency,
+  ].join(':');
+  return crypto.createHmac('sha256', NOMBA_WEBHOOK_SECRET).update(canonical).digest('hex');
 }
 
 describe('Nomba Checkout Callback Integration', () => {
@@ -21,8 +29,14 @@ describe('Nomba Checkout Callback Integration', () => {
   let planId: string;
   let subscriptionId: string;
   let orderReference: string;
+  let server: any;
 
   beforeAll(async () => {
+    server = Bun.serve({
+      port: config.PORT,
+      fetch: createApp().fetch,
+    });
+
     sql = getDb();
     const [tenant] = await sql`
       INSERT INTO tenants (name, email, nomba_account_id, webhook_secret)
@@ -70,6 +84,7 @@ describe('Nomba Checkout Callback Integration', () => {
   });
 
   afterAll(async () => {
+    server.stop();
     await sql`DELETE FROM pending_checkouts WHERE order_reference = ${orderReference}`;
     await sql`DELETE FROM subscriptions WHERE id = ${subscriptionId}`;
     await sql`DELETE FROM plan_currencies WHERE plan_id = ${planId}`;
@@ -97,14 +112,15 @@ describe('Nomba Checkout Callback Integration', () => {
     };
 
     const payload = { event: 'checkout.completed', data };
-    const body = JSON.stringify({ ...payload, signature: undefined });
-    const signature = signPayload(body);
-    const signedPayload = JSON.stringify({ ...payload, signature });
+    const signature = signPayload(payload);
 
     const response = await fetch(`http://localhost:${config.PORT}/webhooks/nomba/checkout`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: signedPayload,
+      headers: {
+        'Content-Type': 'application/json',
+        'nomba-signature': signature,
+      },
+      body: JSON.stringify(payload),
     });
 
     expect(response.status).toBe(200);
@@ -133,14 +149,15 @@ describe('Nomba Checkout Callback Integration', () => {
     };
 
     const payload = { event: 'checkout.completed', data };
-    const body = JSON.stringify({ ...payload, signature: undefined });
-    const signature = signPayload(body);
-    const signedPayload = JSON.stringify({ ...payload, signature });
+    const signature = signPayload(payload);
 
     const response = await fetch(`http://localhost:${config.PORT}/webhooks/nomba/checkout`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: signedPayload,
+      headers: {
+        'Content-Type': 'application/json',
+        'nomba-signature': signature,
+      },
+      body: JSON.stringify(payload),
     });
 
     expect(response.status).toBe(200);

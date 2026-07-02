@@ -73,9 +73,9 @@ describe('Subscription State Machine', () => {
       expect(result.nextState).toBe('active');
     });
 
-    it('transitions to cancelled on MAX_DUNNING_REACHED', () => {
+    it('transitions to unpaid on MAX_DUNNING_REACHED', () => {
       const result = applyTransition('past_due', 'MAX_DUNNING_REACHED');
-      expect(result.nextState).toBe('cancelled');
+      expect(result.nextState).toBe('unpaid');
     });
 
     it('transitions to cancelled on CANCEL', () => {
