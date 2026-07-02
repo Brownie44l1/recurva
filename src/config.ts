@@ -16,6 +16,8 @@ const envSchema = z.object({
   PORTAL_JWT_EXPIRES_IN: z.string().default('1h'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   NOMBA_ENV: z.enum(['test', 'live']).default('test'),
+  NOMBA_LIVE_BASE_URL: z.string().default('https://api.nomba.com'),
+  NOMBA_SANDBOX_BASE_URL: z.string().default('https://sandbox.nomba.com'),
   NOMBA_PARENT_ACCOUNT_ID: z.string().default(''),
   NOMBA_SUB_ACCOUNT_ID: z.string().default(''),
   NOMBA_TEST_CLIENT_ID: z.string().default(''),
