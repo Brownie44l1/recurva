@@ -1,6 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 import { withTransaction } from '../../db/transaction';
 import type { Subscription, CreateSubscriptionInput, CancelOptions, TransitionContext, SubscriptionEvent } from './subscription.types';
+import type { SideEffect } from './subscription.state-machine';
 import * as queries from '../../db/queries/subscription.queries';
 import * as auditQueries from '../../db/queries/audit-log.queries';
 import { applyTransition } from './subscription.state-machine';
@@ -47,13 +48,13 @@ export async function transitionState(
   subscriptionId: string,
   event: SubscriptionEvent,
   context: TransitionContext,
-): Promise<Subscription> {
+): Promise<{ subscription: Subscription; sideEffects: SideEffect[] }> {
   return withTransaction(sql, async (tx) => {
     const s = asSql(tx);
     const subscription = await queries.findSubscriptionForUpdate(s, tenantId, subscriptionId);
     if (!subscription) throw new NotFoundError('Subscription', subscriptionId);
 
-    const { nextState } = applyTransition(subscription.status, event);
+    const { nextState, sideEffects } = applyTransition(subscription.status, event);
 
     const updated = await queries.updateSubscriptionStatus(s, tenantId, subscriptionId, nextState);
 
@@ -67,7 +68,7 @@ export async function transitionState(
       diff: { from: subscription.status, to: nextState },
     });
 
-    return updated;
+    return { subscription: updated, sideEffects };
   });
 }
 
@@ -76,7 +77,7 @@ export async function cancelSubscription(
   tenantId: string,
   subscriptionId: string,
   options: CancelOptions = {},
-): Promise<Subscription> {
+): Promise<{ subscription: Subscription; sideEffects: SideEffect[] }> {
   return withTransaction(sql, async (tx) => {
     const s = asSql(tx);
     const subscription = await queries.findSubscriptionForUpdate(s, tenantId, subscriptionId);
@@ -89,36 +90,38 @@ export async function cancelSubscription(
         WHERE id = ${subscriptionId} AND tenant_id = ${tenantId}
         RETURNING *
       `;
-      return updated!;
+      return { subscription: updated!, sideEffects: ['SCHEDULE_CANCELLATION'] as SideEffect[] };
     }
 
-    const { nextState } = applyTransition(subscription.status, 'CANCEL');
+    const { nextState, sideEffects } = applyTransition(subscription.status, 'CANCEL');
 
     const updated = await queries.updateSubscriptionStatus(s, tenantId, subscriptionId, nextState);
 
-    return updated;
+    return { subscription: updated, sideEffects };
   });
 }
 
-export async function pauseSubscription(sql: Sql, tenantId: string, subscriptionId: string): Promise<Subscription> {
+export async function pauseSubscription(sql: Sql, tenantId: string, subscriptionId: string): Promise<{ subscription: Subscription; sideEffects: SideEffect[] }> {
   return withTransaction(sql, async (tx) => {
     const s = asSql(tx);
     const subscription = await queries.findSubscriptionForUpdate(s, tenantId, subscriptionId);
     if (!subscription) throw new NotFoundError('Subscription', subscriptionId);
 
-    const { nextState } = applyTransition(subscription.status, 'PAUSE');
-    return queries.updateSubscriptionStatus(s, tenantId, subscriptionId, nextState);
+    const { nextState, sideEffects } = applyTransition(subscription.status, 'PAUSE');
+    const updated = await queries.updateSubscriptionStatus(s, tenantId, subscriptionId, nextState);
+    return { subscription: updated, sideEffects };
   });
 }
 
-export async function resumeSubscription(sql: Sql, tenantId: string, subscriptionId: string): Promise<Subscription> {
+export async function resumeSubscription(sql: Sql, tenantId: string, subscriptionId: string): Promise<{ subscription: Subscription; sideEffects: SideEffect[] }> {
   return withTransaction(sql, async (tx) => {
     const s = asSql(tx);
     const subscription = await queries.findSubscriptionForUpdate(s, tenantId, subscriptionId);
     if (!subscription) throw new NotFoundError('Subscription', subscriptionId);
 
-    const { nextState } = applyTransition(subscription.status, 'RESUME');
-    return queries.updateSubscriptionStatus(s, tenantId, subscriptionId, nextState);
+    const { nextState, sideEffects } = applyTransition(subscription.status, 'RESUME');
+    const updated = await queries.updateSubscriptionStatus(s, tenantId, subscriptionId, nextState);
+    return { subscription: updated, sideEffects };
   });
 }
 

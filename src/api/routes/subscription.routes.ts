@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { getDb } from '../../db/client';
 import { tenantAuthMiddleware } from '../middleware/tenant-auth';
 import { createSubscription, getSubscription, cancelSubscription, pauseSubscription, resumeSubscription, listSubscriptionsByTenant, listSubscriptionsByCustomer } from '../../domain/subscription/subscription.service';
+import { executeSideEffects } from '../../domain/subscription/side-effect.dispatcher';
 import { createSubscriptionSchema, cancelSubscriptionSchema, changePlanSchema } from '../validators/subscription.validator';
 
 const router = new Hono();
@@ -45,21 +46,24 @@ router.post('/:id/cancel', zValidator('json', cancelSubscriptionSchema), async (
   const sql = getDb();
   const tenant = c.var.tenant;
   const options = c.req.valid('json');
-  const sub = await cancelSubscription(sql, tenant.id, c.req.param('id'), options);
+  const { subscription: sub, sideEffects } = await cancelSubscription(sql, tenant.id, c.req.param('id'), options);
+  await executeSideEffects(sql, tenant.id, sub, sideEffects, { actorType: 'tenant', actorId: tenant.id });
   return c.json({ subscription: sub });
 });
 
 router.post('/:id/pause', async (c) => {
   const sql = getDb();
   const tenant = c.var.tenant;
-  const sub = await pauseSubscription(sql, tenant.id, c.req.param('id'));
+  const { subscription: sub, sideEffects } = await pauseSubscription(sql, tenant.id, c.req.param('id'));
+  await executeSideEffects(sql, tenant.id, sub, sideEffects, { actorType: 'tenant', actorId: tenant.id });
   return c.json({ subscription: sub });
 });
 
 router.post('/:id/resume', async (c) => {
   const sql = getDb();
   const tenant = c.var.tenant;
-  const sub = await resumeSubscription(sql, tenant.id, c.req.param('id'));
+  const { subscription: sub, sideEffects } = await resumeSubscription(sql, tenant.id, c.req.param('id'));
+  await executeSideEffects(sql, tenant.id, sub, sideEffects, { actorType: 'tenant', actorId: tenant.id });
   return c.json({ subscription: sub });
 });
 
