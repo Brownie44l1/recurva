@@ -93,6 +93,7 @@ export async function updateInvoiceStatus(sql: Sql, invoiceId: string, status: I
       status = ${status},
       paid_at = CASE WHEN ${status} = 'paid' THEN NOW() ELSE paid_at END,
       voided_at = CASE WHEN ${status} = 'void' THEN NOW() ELSE voided_at END,
+      amount_paid = CASE WHEN ${status} = 'paid' THEN amount_due ELSE amount_paid END,
       updated_at = NOW()
     WHERE id = ${invoiceId}
     RETURNING *
