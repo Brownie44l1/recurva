@@ -4,6 +4,7 @@ import type { Subscription, CreateSubscriptionInput, CancelOptions, TransitionCo
 import * as queries from '../../db/queries/subscription.queries';
 import * as auditQueries from '../../db/queries/audit-log.queries';
 import { applyTransition } from './subscription.state-machine';
+import { validateCoupon, recordRedemption } from '../coupon/coupon.service';
 import { NotFoundError, ValidationError } from '../../errors';
 
 function asSql(tx: TransactionSql): Sql {
@@ -20,19 +21,31 @@ export async function createSubscription(
   const trialEnd = trialDays > 0 ? new Date(now.getTime() + trialDays * 86400000) : null;
   const periodEnd = trialEnd ?? new Date(now.getTime() + 30 * 86400000);
 
-  return queries.insertSubscription(sql, tenantId, {
+  let couponId: string | null = null;
+  if (input.couponCode) {
+    const coupon = await validateCoupon(sql, tenantId, input.couponCode, input.currency);
+    couponId = coupon.id;
+  }
+
+  const subscription = await queries.insertSubscription(sql, tenantId, {
     customerId: input.customerId,
     planId: input.planId,
     currency: input.currency,
     status: trialDays > 0 ? 'trialing' : 'active',
     paymentMethodId: input.paymentMethodId ?? null,
-    couponId: null,
+    couponId,
     trialStart: trialDays > 0 ? now : null,
     trialEnd,
     currentPeriodStart: now,
     currentPeriodEnd: periodEnd,
     metadata: input.metadata ?? {},
   });
+
+  if (subscription.couponId) {
+    await recordRedemption(sql, tenantId, subscription.couponId, subscription.id);
+  }
+
+  return subscription;
 }
 
 export async function getSubscription(sql: Sql, tenantId: string, subscriptionId: string): Promise<Subscription> {

@@ -27,6 +27,7 @@ export async function billSubscription(
     const invoice = await buildInvoice(s, tenantId, subscription, {
       periodStart: subscription.currentPeriodStart,
       periodEnd: subscription.currentPeriodEnd,
+      applyCoupon: true,
     });
 
     const finalized = await finalizeInvoice(s, tenantId, invoice.id);
