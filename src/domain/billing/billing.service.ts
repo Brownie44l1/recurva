@@ -31,6 +31,10 @@ export async function billSubscription(
 
     const finalized = await finalizeInvoice(s, tenantId, invoice.id);
 
+    if (finalized.status === 'paid') {
+      return { success: true, invoiceId: invoice.id, chargeId: null, status: 'paid' };
+    }
+
     const pm = subscription.paymentMethodId
       ? await paymentMethodQueries.findPaymentMethodById(s, tenantId, subscription.paymentMethodId)
       : null;
