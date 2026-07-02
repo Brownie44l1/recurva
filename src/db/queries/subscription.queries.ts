@@ -122,6 +122,20 @@ export async function updateSubscriptionPaymentMethod(
   return row!;
 }
 
+export async function decrementCreditBalance(
+  sql: Sql,
+  subscriptionId: string,
+  amount: number,
+): Promise<Subscription> {
+  const [row] = await sql<Subscription[]>`
+    UPDATE subscriptions
+    SET credit_balance = GREATEST(credit_balance - ${amount}, 0), updated_at = NOW()
+    WHERE id = ${subscriptionId}
+    RETURNING *
+  `;
+  return row!;
+}
+
 export async function updateSubscriptionTrialEnd(
   sql: Sql,
   tenantId: string,
