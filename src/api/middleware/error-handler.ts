@@ -1,4 +1,5 @@
 import type { ErrorHandler } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 import { DomainError } from '../../errors';
 import { logger } from '../../logger';
 
@@ -19,6 +20,19 @@ export const errorHandler: ErrorHandler = (err, c) => {
     );
   }
 
+  if (err instanceof HTTPException) {
+    return c.json(
+      {
+        error: {
+          code: err.status === 429 ? 'rate_limit_exceeded' : 'http_exception',
+          message: err.message,
+        },
+        requestId,
+      },
+      err.status,
+    );
+  }
+
   logger.error({ err, requestId }, 'Unhandled error');
 
   return c.json(
@@ -32,3 +46,4 @@ export const errorHandler: ErrorHandler = (err, c) => {
     500,
   );
 };
+

@@ -68,7 +68,9 @@ export function createApp() {
   // API v1 routes
   const v1 = new Hono();
 
-  v1.use(rateLimiter({ windowMs: 60_000, maxRead: 100, maxWrite: 20 }));
+  if (process.env.DISABLE_RATE_LIMITER !== 'true') {
+    v1.use(rateLimiter({ windowMs: 60_000, maxRead: 100, maxWrite: 20 }));
+  }
   v1.use(idempotencyMiddleware);
 
   v1.route('/tenants', tenantRoutes);

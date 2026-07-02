@@ -8,16 +8,30 @@ const MIGRATIONS_DIR = path.join(import.meta.dirname, '../../migrations');
 async function ensureMigrationsTable(sql: ReturnType<typeof getDb>) {
   await sql`
     CREATE TABLE IF NOT EXISTS schema_migrations (
-      version INTEGER PRIMARY KEY,
+      version INTEGER NOT NULL,
       name TEXT NOT NULL,
-      applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (version, name)
     )
   `;
+
+  // If the old primary key (only on version) exists, upgrade it to composite (version, name)
+  const cols = await sql<{ attname: string }[]>`
+    SELECT a.attname
+    FROM   pg_index i
+    JOIN   pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
+    WHERE  i.indrelid = 'schema_migrations'::regclass AND i.indisprimary
+  `;
+  if (cols.length === 1 && cols[0].attname === 'version') {
+    logger.info('Upgrading schema_migrations primary key to (version, name)');
+    await sql`ALTER TABLE schema_migrations DROP CONSTRAINT schema_migrations_pkey`;
+    await sql`ALTER TABLE schema_migrations ADD PRIMARY KEY (version, name)`;
+  }
 }
 
-async function getAppliedMigrations(sql: ReturnType<typeof getDb>): Promise<Set<number>> {
-  const rows = await sql<{ version: number }[]>`SELECT version FROM schema_migrations ORDER BY version`;
-  return new Set(rows.map((r) => r.version));
+async function getAppliedMigrations(sql: ReturnType<typeof getDb>): Promise<Set<string>> {
+  const rows = await sql<{ name: string }[]>`SELECT name FROM schema_migrations`;
+  return new Set(rows.map((r) => r.name));
 }
 
 async function getMigrationFiles(): Promise<{ version: number; name: string; filePath: string }[]> {
@@ -44,8 +58,8 @@ async function migrate() {
   const migrations = await getMigrationFiles();
 
   for (const migration of migrations) {
-    if (applied.has(migration.version)) {
-      logger.debug({ version: migration.version }, 'Migration already applied');
+    if (applied.has(migration.name)) {
+      logger.debug({ version: migration.version, name: migration.name }, 'Migration already applied');
       continue;
     }
 
@@ -71,7 +85,7 @@ async function rollback() {
   await ensureMigrationsTable(sql);
 
   const last = await sql<{ version: number; name: string }[]>`
-    SELECT version, name FROM schema_migrations ORDER BY version DESC LIMIT 1
+    SELECT version, name FROM schema_migrations ORDER BY version DESC, applied_at DESC LIMIT 1
   `;
 
   if (last.length === 0) {
@@ -81,10 +95,10 @@ async function rollback() {
   }
 
   const { version, name } = last[0]!;
-  const migration = (await getMigrationFiles()).find((m) => m.version === version);
+  const migration = (await getMigrationFiles()).find((m) => m.version === version && m.name === name);
 
   if (!migration) {
-    logger.error({ version }, 'Migration file not found for rollback');
+    logger.error({ version, name }, 'Migration file not found for rollback');
     process.exit(1);
   }
 
@@ -98,7 +112,7 @@ async function rollback() {
 
   await sql.begin(async (tx) => {
     await tx.unsafe(rollbackMatch[1]!);
-    await tx`DELETE FROM schema_migrations WHERE version = ${version}`;
+    await tx`DELETE FROM schema_migrations WHERE version = ${version} AND name = ${name}`;
   });
 
   logger.info({ version, name }, 'Migration rolled back');
@@ -111,3 +125,4 @@ if (args.includes('--rollback')) {
 } else {
   await migrate();
 }
+

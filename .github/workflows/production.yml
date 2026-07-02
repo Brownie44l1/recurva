@@ -96,3 +96,20 @@ jobs:
             ./ "ubuntu@${PROD_HOST}:/opt/recurva/"
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "ubuntu@${PROD_HOST}" \
             "cd /opt/recurva && docker compose up -d --build"
+
+      - name: Run migrations on production server
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "ubuntu@${PROD_HOST}" \
+            "docker run --rm \
+              -v /opt/recurva:/app \
+              -w /app \
+              --network \"\$(docker inspect recurva-db -f '{{range \$net, \$v := .NetworkSettings.Networks}}{\$net}{{end}}')\" \
+              --env-file /opt/recurva/.env \
+              oven/bun:1 \
+              bun run src/db/migrate.ts"
