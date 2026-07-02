@@ -52,6 +52,11 @@ export async function runDunningCycle(): Promise<void> {
               actorType: 'system',
               actorId: 'dunning-runner',
             });
+          } else if (decision === 'mark_unpaid') {
+            await transitionState(sql, invoice.tenantId, attempt.subscriptionId, 'MAX_DUNNING_REACHED', {
+              actorType: 'system',
+              actorId: 'dunning-runner',
+            });
           }
         }
 
