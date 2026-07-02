@@ -25,10 +25,22 @@ interface NombaCheckoutCallbackPayload {
   signature: string;
 }
 
-function verifySignature(payload: string, signature: string): boolean {
+const NOMBA_SIGNATURE_HEADER = 'nomba-signature';
+
+function buildHashingPayload(payload: NombaCheckoutCallbackPayload): string {
+  return [
+    payload.event,
+    payload.data.orderReference,
+    payload.data.transactionId,
+    String(payload.data.amount),
+    payload.data.currency,
+  ].join(':');
+}
+
+function verifySignature(canonical: string, signature: string): boolean {
   const expected = crypto
     .createHmac('sha256', config.NOMBA_WEBHOOK_SECRET)
-    .update(payload)
+    .update(canonical)
     .digest('hex');
   return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
 }
@@ -43,10 +55,16 @@ export async function handleNombaCheckoutCallback(c: Context): Promise<Response>
     return c.json({ error: 'invalid_json' }, 400);
   }
 
-  const providedSignature = payload.signature;
-  const bodyWithoutSignature = JSON.stringify({ ...payload, signature: undefined });
+  const headerSig = c.req.header(NOMBA_SIGNATURE_HEADER);
+  const providedSignature = headerSig ?? payload.signature ?? null;
+  if (!providedSignature) {
+    logger.warn({ orderReference: payload.data.orderReference }, 'Missing Nomba webhook signature');
+    return c.json({ error: 'missing_signature' }, 401);
+  }
 
-  if (!verifySignature(bodyWithoutSignature, providedSignature)) {
+  const hashingPayload = buildHashingPayload(payload);
+
+  if (!verifySignature(hashingPayload, providedSignature)) {
     logger.warn({ orderReference: payload.data.orderReference }, 'Invalid Nomba webhook signature');
     return c.json({ error: 'invalid_signature' }, 401);
   }
