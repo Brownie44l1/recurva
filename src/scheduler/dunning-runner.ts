@@ -14,7 +14,14 @@ const DUNNING_LOCK_KEY = 2001;
 export async function runDunningCycle(): Promise<void> {
   const sql = getDb();
 
-  const acquired = await tryAcquireLock(sql, DUNNING_LOCK_KEY);
+  let acquired = false;
+  try {
+    acquired = await tryAcquireLock(sql, DUNNING_LOCK_KEY);
+  } catch {
+    logger.error({ event: 'scheduler.dunning.db_unavailable' });
+    return;
+  }
+
   if (!acquired) {
     logger.info({ event: 'scheduler.dunning.skipped', reason: 'lock_held' });
     return;
@@ -88,10 +95,14 @@ let timer: ReturnType<typeof setInterval> | null = null;
 export function startDunningScheduler(): void {
   logger.info({ event: 'scheduler.dunning.started', cron: config.DUNNING_CRON });
 
-  runDunningCycle();
+  runDunningCycle().catch((error) => {
+    logger.error({ event: 'scheduler.dunning.initial_failed', error: error instanceof Error ? error.message : 'Unknown error' });
+  });
 
   timer = setInterval(() => {
-    runDunningCycle();
+    runDunningCycle().catch((error) => {
+      logger.error({ event: 'scheduler.dunning.cycle_failed', error: error instanceof Error ? error.message : 'Unknown error' });
+    });
   }, INTERVAL_MS);
 }
 
