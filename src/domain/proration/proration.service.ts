@@ -32,8 +32,8 @@ export function calculateProration(
   const dailyOldRate = Math.floor(oldPlanAmount / oldPeriodDays);
   const dailyNewRate = Math.floor(newPlanAmount / newPeriodDays);
 
-  const creditAmount = Math.floor(dailyOldRate * daysRemaining);
-  const chargeAmount = Math.floor(dailyNewRate * daysRemaining);
+  const creditAmount = Math.floor(oldPlanAmount * daysRemaining / oldPeriodDays);
+  const chargeAmount = Math.floor(newPlanAmount * daysRemaining / newPeriodDays);
   const netAmount = chargeAmount - creditAmount;
 
   return {

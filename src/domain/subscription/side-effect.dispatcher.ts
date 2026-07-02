@@ -4,6 +4,7 @@ import type { SideEffect } from './subscription.state-machine';
 import { billSubscription } from '../billing/billing.service';
 import { initiateDunning } from '../dunning/dunning.service';
 import { enqueueEvent } from '../webhook/webhook.service';
+import * as dunningQueries from '../../db/queries/dunning.queries';
 
 interface SideEffectContext {
   invoiceId?: string;
@@ -43,7 +44,24 @@ export async function executeSideEffects(
         });
         break;
 
-      default:
+      case 'CLEAR_DUNNING':
+        await dunningQueries.cancelScheduledDunning(sql, subscription.id);
+        break;
+
+      case 'CANCEL_IMMEDIATELY':
+        await dunningQueries.cancelScheduledDunning(sql, subscription.id);
+        await enqueueEvent(sql, tenantId, 'subscription.cancelled', {
+          subscriptionId: subscription.id,
+          customerId: subscription.customerId,
+          reason: context.reason ?? null,
+        });
+        break;
+
+      case 'CREATE_NEW_CYCLE':
+        await enqueueEvent(sql, tenantId, 'subscription.reactivated', {
+          subscriptionId: subscription.id,
+          customerId: subscription.customerId,
+        });
         break;
     }
   }

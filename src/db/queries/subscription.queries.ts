@@ -54,7 +54,7 @@ export async function findDueForBilling(sql: Sql, asOf: Date, limit: number = 10
   return sql<Subscription[]>`
     SELECT s.*
     FROM subscriptions s
-    WHERE s.status IN ('active', 'trialing')
+    WHERE s.status IN ('active', 'trialing', 'past_due')
       AND s.current_period_end <= ${asOf}
       AND NOT EXISTS (
         SELECT 1 FROM invoices i
@@ -117,6 +117,20 @@ export async function updateSubscriptionPaymentMethod(
     UPDATE subscriptions
     SET payment_method_id = ${paymentMethodId}, updated_at = NOW()
     WHERE tenant_id = ${tenantId} AND id = ${subscriptionId}
+    RETURNING *
+  `;
+  return row!;
+}
+
+export async function restoreCreditBalance(
+  sql: Sql,
+  subscriptionId: string,
+  amount: number,
+): Promise<Subscription> {
+  const [row] = await sql<Subscription[]>`
+    UPDATE subscriptions
+    SET credit_balance = credit_balance + ${amount}, updated_at = NOW()
+    WHERE id = ${subscriptionId}
     RETURNING *
   `;
   return row!;
