@@ -15,7 +15,8 @@ export type SubscriptionEvent =
   | 'PAUSE'
   | 'RESUME'
   | 'MAX_DUNNING_REACHED'
-  | 'REACTIVATE';
+  | 'REACTIVATE'
+  | 'GRACE_PERIOD_ENDED';
 
 export interface Subscription {
   id: string;

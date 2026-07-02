@@ -34,7 +34,7 @@ const TRANSITION_TABLE: Record<SubscriptionStatus, Partial<Record<SubscriptionEv
   },
   past_due: {
     PAYMENT_SUCCESS: { nextState: 'active', sideEffects: ['CLEAR_DUNNING', 'ACTIVATE'] },
-    MAX_DUNNING_REACHED: { nextState: 'cancelled', sideEffects: ['CANCEL_IMMEDIATELY', 'NOTIFY_TENANT'] },
+    MAX_DUNNING_REACHED: { nextState: 'unpaid', sideEffects: ['NOTIFY_TENANT'] },
     CANCEL: { nextState: 'cancelled', sideEffects: ['CANCEL_IMMEDIATELY'] },
   },
   paused: {
@@ -43,11 +43,13 @@ const TRANSITION_TABLE: Record<SubscriptionStatus, Partial<Record<SubscriptionEv
   },
   cancelled: {
     REACTIVATE: { nextState: 'active', sideEffects: ['CREATE_NEW_CYCLE'] },
+    GRACE_PERIOD_ENDED: { nextState: 'ended', sideEffects: ['NOTIFY_TENANT'] },
   },
   ended: {},
   unpaid: {
     PAYMENT_SUCCESS: { nextState: 'active', sideEffects: ['ACTIVATE'] },
-    MAX_DUNNING_REACHED: { nextState: 'cancelled', sideEffects: ['CANCEL_IMMEDIATELY'] },
+    GRACE_PERIOD_ENDED: { nextState: 'cancelled', sideEffects: ['CANCEL_IMMEDIATELY', 'NOTIFY_TENANT'] },
+    CANCEL: { nextState: 'cancelled', sideEffects: ['CANCEL_IMMEDIATELY'] },
   },
 };
 
