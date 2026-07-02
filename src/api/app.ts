@@ -14,6 +14,7 @@ import { usageRoutes } from './routes/usage.routes';
 import { invoiceRoutes } from './routes/invoice.routes';
 import { webhookRoutes } from './routes/webhook.routes';
 import { handleNombaCheckoutCallback } from '../webhooks/inbound/nomba';
+import { idempotencyMiddleware } from './middleware/idempotency';
 
 export function createApp() {
   const app = new Hono();
@@ -63,6 +64,7 @@ export function createApp() {
   const v1 = new Hono();
 
   v1.use(rateLimiter({ windowMs: 60_000, maxRead: 100, maxWrite: 20 }));
+  v1.use(idempotencyMiddleware);
 
   v1.route('/tenants', tenantRoutes);
   v1.route('/plans', planRoutes);
