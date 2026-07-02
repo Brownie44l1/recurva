@@ -161,6 +161,13 @@ export async function updateChargeByNombaReference(sql: Sql, nombaReference: str
   return row ?? null;
 }
 
+export async function findSucceededChargeForInvoice(sql: Sql, invoiceId: string): Promise<Charge | null> {
+  const [row] = await sql<Charge[]>`
+    SELECT * FROM charges WHERE invoice_id = ${invoiceId} AND status = 'succeeded' LIMIT 1
+  `;
+  return row ?? null;
+}
+
 export async function findPendingChargeForInvoice(sql: Sql, invoiceId: string): Promise<Charge | null> {
   const [row] = await sql<Charge[]>`
     SELECT * FROM charges WHERE invoice_id = ${invoiceId} AND status = 'pending' LIMIT 1

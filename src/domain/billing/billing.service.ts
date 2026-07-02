@@ -141,6 +141,11 @@ export async function retryCharge(
       return { success: false, invoiceId: invoice.id, chargeId: null, status: 'failed', failureReason: `Cannot retry invoice in status: ${invoice.status}` };
     }
 
+    const existingSucceeded = await invoiceQueries.findSucceededChargeForInvoice(s, invoice.id);
+    if (existingSucceeded) {
+      return { success: true, invoiceId: invoice.id, chargeId: existingSucceeded.id, status: 'paid' };
+    }
+
     if (invoice.amountDue <= 0) {
       await invoiceQueries.updateInvoiceStatus(s, invoice.id, 'paid');
       await decrementCreditForInvoice(s, invoice.subscriptionId, invoice.total, invoice.amountDue);
