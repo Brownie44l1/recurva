@@ -53,7 +53,7 @@ export async function buildInvoice(
   if (options.applyCoupon && subscription.couponId) {
     const coupon = await couponQueries.findCouponById(sql, tenantId, subscription.couponId);
     if (coupon && coupon.isActive) {
-      const redemption = await couponQueries.findRedemption(sql, coupon.id, subscription.id);
+      const redemption = await couponQueries.findRedemptionForUpdate(sql, coupon.id, subscription.id);
       const monthsApplied = redemption?.monthsApplied ?? 0;
 
       let eligible = true;
@@ -122,7 +122,6 @@ export async function buildInvoice(
         amount: -creditUse,
       });
       lineItems.push(creditLineItem);
-      await subscriptionQueries.decrementCreditBalance(sql, subscription.id, creditUse);
     }
   }
 
@@ -150,6 +149,18 @@ export async function getInvoice(sql: Sql, tenantId: string, invoiceId: string):
 }
 
 export async function voidInvoice(sql: Sql, tenantId: string, invoiceId: string): Promise<Invoice> {
+  const current = await queries.findInvoiceById(sql, tenantId, invoiceId);
+  if (!current) throw new NotFoundError('Invoice', invoiceId);
+
+  const wasPaid = current.status === 'paid';
+  if (wasPaid) {
+    const creditLineItem = current.lineItems.find((li) => li.type === 'credit' && li.amount < 0);
+    if (creditLineItem) {
+      const creditToRestore = Math.abs(creditLineItem.amount);
+      await subscriptionQueries.restoreCreditBalance(sql, current.subscriptionId, creditToRestore);
+    }
+  }
+
   const invoice = await queries.updateInvoiceStatus(sql, invoiceId, 'void');
   const lineItems = (await queries.findInvoiceById(sql, tenantId, invoiceId))?.lineItems ?? [];
   return { ...invoice, lineItems };

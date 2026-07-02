@@ -93,6 +93,7 @@ export async function updateInvoiceStatus(sql: Sql, invoiceId: string, status: I
       status = ${status},
       paid_at = CASE WHEN ${status} = 'paid' THEN NOW() ELSE paid_at END,
       voided_at = CASE WHEN ${status} = 'void' THEN NOW() ELSE voided_at END,
+      amount_paid = CASE WHEN ${status} = 'paid' THEN amount_due ELSE amount_paid END,
       updated_at = NOW()
     WHERE id = ${invoiceId}
     RETURNING *
@@ -156,6 +157,21 @@ export async function updateChargeByNombaReference(sql: Sql, nombaReference: str
       updated_at = NOW()
     WHERE nomba_reference = ${nombaReference}
     RETURNING *
+  `;
+  return row ?? null;
+}
+
+export async function findSucceededChargeForInvoice(sql: Sql, invoiceId: string): Promise<Charge | null> {
+  const [row] = await sql<Charge[]>`
+    SELECT * FROM charges WHERE invoice_id = ${invoiceId} AND status = 'succeeded' LIMIT 1
+  `;
+  return row ?? null;
+}
+
+export async function findPendingChargeForInvoice(sql: Sql, invoiceId: string): Promise<Charge | null> {
+  const [row] = await sql<Charge[]>`
+    SELECT * FROM charges WHERE invoice_id = ${invoiceId} AND status = 'pending' LIMIT 1
+    FOR UPDATE
   `;
   return row ?? null;
 }

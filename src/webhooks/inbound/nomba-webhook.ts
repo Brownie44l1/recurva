@@ -53,13 +53,6 @@ export async function handleNombaWebhook(c: Context): Promise<Response> {
 
   const sql = getDb();
 
-  const existing = await sql<{ id: string }[]>`
-    SELECT id FROM webhook_events WHERE nomba_event_id = ${payload.eventId} LIMIT 1
-  `;
-  if (existing.length > 0) {
-    return c.json({ status: 'already_processed' });
-  }
-
   const routing: Record<string, (payload: NombaWebhookPayload, sql: Sql) => Promise<void>> = {
     'charge.success': handleChargeSuccess,
     'charge.failure': handleChargeFailure,
@@ -67,7 +60,17 @@ export async function handleNombaWebhook(c: Context): Promise<Response> {
   };
 
   const handler = routing[payload.event];
+
   if (handler) {
+    const inserted = await sql`
+      INSERT INTO webhook_events (nomba_event_id, event_type, payload)
+      VALUES (${payload.eventId}, ${payload.event}, ${sql.json(payload.data as any)})
+      ON CONFLICT (nomba_event_id) DO NOTHING
+      RETURNING id
+    `;
+    if (inserted.length === 0) {
+      return c.json({ status: 'already_processed' });
+    }
     await handler(payload, sql);
   } else {
     logger.warn({ event: payload.event, eventId: payload.eventId }, 'Unknown Nomba webhook event');
@@ -75,12 +78,12 @@ export async function handleNombaWebhook(c: Context): Promise<Response> {
       INSERT INTO dead_letter_webhooks (nomba_event_id, event_type, payload, raw_body, reason)
       VALUES (${payload.eventId}, ${payload.event}, ${sql.json(payload.data as any)}, ${rawBody}, 'unknown_event_type')
     `;
+    await sql`
+      INSERT INTO webhook_events (nomba_event_id, event_type, payload)
+      VALUES (${payload.eventId}, ${payload.event}, ${sql.json(payload.data as any)})
+      ON CONFLICT (nomba_event_id) DO NOTHING
+    `;
   }
-
-  await sql`
-    INSERT INTO webhook_events (nomba_event_id, event_type, payload)
-    VALUES (${payload.eventId}, ${payload.event}, ${sql.json(payload.data as any)})
-  `;
 
   return c.json({ status: 'processed' });
 }
@@ -119,6 +122,11 @@ async function handleChargeSuccess(payload: NombaWebhookPayload, sql: Sql): Prom
     }
 
     await invoiceQueries.updateInvoiceStatus(s, data.invoiceId!, 'paid');
+
+    const creditUsed = invoice.total - invoice.amountDue;
+    if (creditUsed > 0) {
+      await subscriptionQueries.decrementCreditBalance(s, invoice.subscriptionId, creditUsed);
+    }
 
     const subscription = await subscriptionQueries.findSubscriptionById(s, data.tenantId!, invoice.subscriptionId);
     if (subscription && (subscription.status === 'past_due' || subscription.status === 'incomplete')) {

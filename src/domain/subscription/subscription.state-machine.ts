@@ -33,6 +33,7 @@ const TRANSITION_TABLE: Record<SubscriptionStatus, Partial<Record<SubscriptionEv
     CHANGE_PLAN: { nextState: 'trialing', sideEffects: [] },
   },
   active: {
+    PAYMENT_SUCCESS: { nextState: 'active', sideEffects: [] },
     PAYMENT_FAILED: { nextState: 'past_due', sideEffects: ['START_DUNNING'] },
     CANCEL: { nextState: 'cancelled', sideEffects: ['SCHEDULE_CANCELLATION'] },
     PAUSE: { nextState: 'paused', sideEffects: ['PAUSE_BILLING'] },

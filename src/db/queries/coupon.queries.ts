@@ -62,6 +62,14 @@ export async function findRedemption(sql: Sql, couponId: string, subscriptionId:
   return row ?? null;
 }
 
+export async function findRedemptionForUpdate(sql: Sql, couponId: string, subscriptionId: string): Promise<CouponRedemption | null> {
+  const [row] = await sql<CouponRedemption[]>`
+    SELECT * FROM coupon_redemptions WHERE coupon_id = ${couponId} AND subscription_id = ${subscriptionId} LIMIT 1
+    FOR UPDATE
+  `;
+  return row ?? null;
+}
+
 export async function insertRedemption(sql: Sql, couponId: string, subscriptionId: string): Promise<CouponRedemption> {
   const [row] = await sql<CouponRedemption[]>`
     INSERT INTO coupon_redemptions (coupon_id, subscription_id)

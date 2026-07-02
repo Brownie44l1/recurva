@@ -53,13 +53,13 @@ export async function initiateDunning(
 }
 
 export async function getNextRetryTime(sql: Sql, tenantId: string, subscriptionId: string): Promise<Date | null> {
-  const attempts = await queries.findDunningAttemptsBySubscription(sql, subscriptionId);
+  const attempts = await queries.findDunningAttemptsBySubscriptionForUpdate(sql, subscriptionId);
   const next = attempts.find((a) => a.status === 'scheduled');
   return next?.scheduledAt ?? null;
 }
 
 export async function recordAttempt(sql: Sql, tenantId: string, subscriptionId: string, result: DunningAttemptResult): Promise<void> {
-  const attempts = await queries.findDunningAttemptsBySubscription(sql, subscriptionId);
+  const attempts = await queries.findDunningAttemptsBySubscriptionForUpdate(sql, subscriptionId);
   const current = attempts.find((a) => a.status === 'scheduled');
   if (current) {
     await queries.updateDunningAttempt(sql, current.id, {
@@ -72,7 +72,7 @@ export async function recordAttempt(sql: Sql, tenantId: string, subscriptionId: 
 }
 
 export async function evaluatePolicy(sql: Sql, tenantId: string, subscriptionId: string): Promise<DunningPolicyDecision> {
-  const attempts = await queries.findDunningAttemptsBySubscription(sql, subscriptionId);
+  const attempts = await queries.findDunningAttemptsBySubscriptionForUpdate(sql, subscriptionId);
   const failedAttempts = attempts.filter((a) => a.status === 'failed');
   const scheduled = attempts.filter((a) => a.status === 'scheduled');
 
@@ -85,6 +85,6 @@ export async function evaluatePolicy(sql: Sql, tenantId: string, subscriptionId:
 }
 
 export async function detectSelfCure(sql: Sql, tenantId: string, subscriptionId: string): Promise<boolean> {
-  const attempts = await queries.findDunningAttemptsBySubscription(sql, subscriptionId);
+  const attempts = await queries.findDunningAttemptsBySubscriptionForUpdate(sql, subscriptionId);
   return attempts.some((a) => a.status === 'succeeded');
 }

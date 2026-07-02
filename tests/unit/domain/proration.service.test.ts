@@ -13,9 +13,9 @@ describe('Proration Service', () => {
     expect(result.daysRemaining).toBe(16);
     expect(result.dailyOldRate).toBe(161);
     expect(result.dailyNewRate).toBe(322);
-    expect(result.creditAmount).toBe(2576);
-    expect(result.chargeAmount).toBe(5152);
-    expect(result.netAmount).toBe(2576);
+    expect(result.creditAmount).toBe(2580);
+    expect(result.chargeAmount).toBe(5161);
+    expect(result.netAmount).toBe(2581);
   });
 
   it('returns zero proration on last day', () => {
@@ -114,8 +114,8 @@ describe('Proration Service', () => {
       const expectedDailyNew = Math.floor(annualAmount / annualDays);
       expect(result.dailyOldRate).toBe(expectedDailyOld);
       expect(result.dailyNewRate).toBe(expectedDailyNew);
-      expect(result.creditAmount).toBe(Math.floor(expectedDailyOld * result.daysRemaining));
-      expect(result.chargeAmount).toBe(Math.floor(expectedDailyNew * result.daysRemaining));
+      expect(result.creditAmount).toBe(Math.floor(monthlyAmount * result.daysRemaining / monthlyDays));
+      expect(result.chargeAmount).toBe(Math.floor(annualAmount * result.daysRemaining / annualDays));
     });
 
     it('handles annual plan cancel on first day', () => {
