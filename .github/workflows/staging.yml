@@ -60,10 +60,11 @@ jobs:
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "ubuntu@${DEV_HOST}" \
-            "docker run --rm \
+            'NETWORK=$(docker inspect recurva-db -f "{{range \$net, \$v := .NetworkSettings.Networks}}{{\$net}}{{end}}")
+            docker run --rm \
               -v /opt/recurva:/app \
               -w /app \
-              --network \"\$(docker inspect recurva-db -f '{{range \$net, \$v := .NetworkSettings.Networks}}{\$net}{{end}}')\" \
+              --network "$NETWORK" \
               --env-file /opt/recurva/.env \
               oven/bun:1 \
-              bun run src/db/migrate.ts"
+              bun run src/db/migrate.ts'
