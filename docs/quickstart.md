@@ -4,13 +4,13 @@ Get from zero to your first paid subscription in ~10 minutes.
 
 ## Prerequisites
 
-- A running Recurva instance (`docker compose up`) or access to `https://recurva.xyz` (production) or `https://dev.recurva.xyz` (staging)
+- A running Recurva instance (`docker compose up`) or access to `https://api.recurva.xyz` (production) or `https://dev.recurva.xyz` (staging)
 - `curl` (or any HTTP client)
 
 ## Step 1: Register a Tenant
 
 ```bash
-curl -X POST https://recurva.xyz/v1/tenants/register \
+curl -X POST https://api.recurva.xyz/v1/tenants/register \
   -H "Content-Type: application/json" \
   -d '{
     "name": "My SaaS Company",
@@ -32,7 +32,7 @@ Save the `apiKey` from the response — you'll use it for all subsequent request
 ## Step 2: Create a Plan
 
 ```bash
-curl -X POST https://recurva.xyz/v1/plans \
+curl -X POST https://api.recurva.xyz/v1/plans \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer rcv_live_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4" \
   -d '{
@@ -51,7 +51,7 @@ Save the `plan.id` from the response.
 ## Step 3: Create a Customer
 
 ```bash
-curl -X POST https://recurva.xyz/v1/customers \
+curl -X POST https://api.recurva.xyz/v1/customers \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer rcv_live_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4" \
   -d '{
@@ -68,7 +68,7 @@ Save the `customer.id` from the response.
 If the customer has a saved payment method:
 
 ```bash
-curl -X POST https://recurva.xyz/v1/subscriptions \
+curl -X POST https://api.recurva.xyz/v1/subscriptions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer rcv_live_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4" \
   -d '{
@@ -93,7 +93,7 @@ Redirect the customer to the `checkoutUrl`. After they complete payment, Nomba s
 ## Step 5: Verify the Subscription
 
 ```bash
-curl -X GET https://recurva.xyz/v1/subscriptions/<subscription-id> \
+curl -X GET https://api.recurva.xyz/v1/subscriptions/<subscription-id> \
   -H "Authorization: Bearer rcv_live_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4"
 ```
 
@@ -102,7 +102,7 @@ curl -X GET https://recurva.xyz/v1/subscriptions/<subscription-id> \
 To receive outbound events:
 
 ```bash
-curl -X POST https://recurva.xyz/v1/webhooks/endpoints \
+curl -X POST https://api.recurva.xyz/v1/webhooks/endpoints \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer rcv_live_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4" \
   -d '{

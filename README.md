@@ -107,7 +107,7 @@ Merge `dev → staging → main`. CI runs tests + migrations on each push.
 
 | Server | IP | Domain |
 |--------|----|--------|
-| Production | `129.80.235.169` | `recurva.xyz` |
+| Production | `129.80.235.169` | `recurva.xyz` (frontend + webhooks), `api.recurva.xyz` (API) |
 | Development | `157.151.216.152` | `dev.recurva.xyz` |
 
 Both run on Oracle Cloud Free Tier (Ubuntu 22.04, Docker, nginx + Let's Encrypt SSL).

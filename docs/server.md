@@ -39,8 +39,9 @@
 ### Subdomains
 | Subdomain | Purpose | Server |
 |-----------|---------|--------|
-| `recurva.xyz` | Production (root) | recurva-prod |
+| `recurva.xyz` | Frontend / Landing page + webhooks | recurva-prod |
 | `www.recurva.xyz` | Production (www) | recurva-prod |
+| `api.recurva.xyz` | API server (proxy to port 3000) | recurva-prod |
 | `dev.recurva.xyz` | Development environment | recurva-dev |
 
 ---
@@ -243,8 +244,9 @@ sudo netfilter-persistent save
 
 | Type | Name | Content | Proxied | Purpose |
 |------|------|---------|---------|---------|
-| A | `@` | `129.80.235.169` | ✅ Yes | Root domain → prod |
-| A | `www` | `129.80.235.169` | ✅ Yes | www → prod |
+| A | `@` | `129.80.235.169` | ✅ Yes | Landing page + webhooks |
+| A | `www` | `129.80.235.169` | ✅ Yes | www redirect |
+| A | `api` | `129.80.235.169` | ✅ Yes | API server |
 | A | `dev` | `157.151.216.152` | ❌ No | dev subdomain → dev server |
 
 ### Managing DNS via Cloudflare API
@@ -300,29 +302,64 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-### Nginx Config Template (Reverse Proxy)
+### Current Production Nginx Config
+
+The production server (`recurva.xyz`) runs two domains:
+
+- **`recurva.xyz`** — Serves static frontend from `/var/www/recurva/` (fallback to app), always proxies `/webhooks/` and `/health` to port 3000.
+- **`api.recurva.xyz`** — Pure API proxy, everything goes to port 3000.
+
+Config file: `/etc/nginx/sites-available/recurva`
+
 ```nginx
+# recurva.xyz — frontend + webhooks
 server {
     listen 80;
-    server_name myapp.recurva.xyz;
+    server_name recurva.xyz;
 
-    location / {
-        proxy_pass http://localhost:3000;  # Your app port
+    location /webhooks/ {
+        proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
+        proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location / {
+        root /var/www/recurva;
+        try_files $uri $uri/ @app;
+    }
+
+    location @app {
+        proxy_pass http://127.0.0.1:3000;
+        ...
+    }
+}
+
+# api.recurva.xyz — pure API
+server {
+    listen 80;
+    server_name api.recurva.xyz;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        ...
     }
 }
 ```
+
+> After adding the A record for `api` in Cloudflare, run `sudo certbot --nginx -d api.recurva.xyz` to add SSL.
 
 ### Getting SSL with Certbot
 ```bash
 # Get certificate for a domain
 sudo certbot --nginx -d yourdomain.recurva.xyz
+
+# Example: add SSL for the API subdomain (after DNS record is added)
+sudo certbot --nginx -d api.recurva.xyz
 
 # Renew all certificates
 sudo certbot renew
@@ -332,6 +369,8 @@ sudo certbot renew --dry-run
 ```
 
 > **Note:** Certbot auto-renewal is set up as a systemd timer. Certificates are valid for 90 days and auto-renew at 60 days.
+>
+> **DNS prerequisite:** The domain must resolve to this server before certbot can issue a certificate (HTTP-01 challenge). Add the A record in Cloudflare first.
 
 ---
 
