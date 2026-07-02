@@ -70,4 +70,4 @@ jobs:
               --network "$NETWORK" \
               --env-file /opt/recurva/.env \
               oven/bun:1 \
-              bun run src/db/migrate.ts'
+              sh -c "bun pm cache rm && bun install --frozen-lockfile && bun run src/db/migrate.ts"'
