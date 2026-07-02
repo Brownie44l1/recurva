@@ -2,27 +2,30 @@
 
 ## Branch Strategy
 
-| Branch | Purpose | Deploys To |
-|--------|---------|------------|
-| `main` | Production-ready code | `recurva.xyz` |
-| `staging` | Pre-production validation | — |
-| `dev` | Active development | `dev.recurva.xyz` |
-| `feat/RCV-NNN-slug` | Per-issue feature branches | — |
+| Branch | Purpose | Auto-deploys To | URL |
+|--------|---------|----------------|-----|
+| `dev` | Active development (default) | — | — |
+| `staging` | Pre-production validation | Dev server | `dev.recurva.xyz` |
+| `main` | Production releases | Production | `recurva.xyz` |
 
 ### Workflow
 
-1. Branch from `dev`: `git checkout dev && git checkout -b feat/RCV-XXX-description`
+```
+feat/RCV-XXX  ──PR──▶  dev  ──merge──▶  staging  ──merge──▶  main
+```
+
+1. Create a feature branch from `dev`:
+   ```bash
+   git checkout dev
+   git checkout -b feat/RCV-XXX-description
+   ```
 2. Commit changes with descriptive messages.
 3. Open a pull request targeting `dev`.
-4. After review, merge into `dev`.
-5. Periodically merge `dev` into `staging` for pre-release validation.
-6. Merge `staging` into `main` for production releases.
+4. After review/CI passes, merge into `dev`.
+5. To deploy to staging: merge `dev` into `staging` → CI auto-deploys to `dev.recurva.xyz`.
+6. To release to production: merge `staging` into `main` → CI auto-deploys to `recurva.xyz`.
 
-## Issue Tracking
-
-- All work is tracked via GitHub Issues.
-- Branch convention: `feat/RCV-NNN-slug` (e.g. `feat/RCV-001-repo-init`).
-- Label conventions: `epic:[name]` + `type:[feat|chore|test|fix|docs]`.
+> Never commit directly to `staging` or `main`. All changes flow through `dev` first.
 
 ## Commit Messages
 
@@ -58,15 +61,15 @@ docs: update API reference
 ## Getting Started
 
 ```bash
-git clone git@github.com:anomalyco/recurva.git
+git clone git@github.com:Brownie44l1/recurva.git
 cd recurva
 bun install
 cp .env.example .env
-docker compose up -d     # starts app + PostgreSQL
-bun run migrate           # apply database migrations
-bun run dev               # hot-reload dev server
+docker compose up -d
+bun run migrate
+bun run dev
 ```
 
 ## Environment
 
-See `.env.example` for all required variables. Never commit `.env` files.
+See `.env` for all required variables. Never commit `.env` files. Secrets are injected via GitHub Actions secrets (`TEST_JWT_SECRET`, `TEST_NOMBA_WEBHOOK_SECRET`) in CI.
