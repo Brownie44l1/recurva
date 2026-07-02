@@ -3,8 +3,10 @@ import type { ChargeInput, ChargeResult, CheckoutInput, CheckoutResult, RefundIn
 import { config } from '../config';
 import { logger } from '../logger';
 
-export function createNombaClient(tenant: { id: string; nombaAccountId: string }) {
-  const baseUrl = config.NOMBA_LIVE_BASE_URL;
+export function createNombaClient(tenant: { id: string; nombaAccountId: string; mode: 'test' | 'live' }) {
+  const isLive = tenant.mode === 'live';
+  const baseUrl = isLive ? config.NOMBA_LIVE_BASE_URL : config.NOMBA_SANDBOX_BASE_URL;
+  const secretKey = isLive ? config.NOMBA_LIVE_SECRET : config.NOMBA_SANDBOX_SECRET;
 
   async function request<T>(path: string, body: Record<string, unknown>): Promise<T> {
     const url = `${baseUrl}${path}`;
@@ -12,7 +14,7 @@ export function createNombaClient(tenant: { id: string; nombaAccountId: string }
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.NOMBA_LIVE_SECRET}`,
+        'Authorization': `Bearer ${secretKey}`,
         'X-Account-ID': tenant.nombaAccountId,
       },
       body: JSON.stringify(body),

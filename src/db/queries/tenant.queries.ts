@@ -1,10 +1,10 @@
 import type { Sql } from 'postgres';
 import type { Tenant, TenantApiKey } from '../../domain/tenant/tenant.types';
 
-export async function insertTenant(sql: Sql, input: { name: string; email: string }): Promise<Tenant> {
+export async function insertTenant(sql: Sql, input: { name: string; email: string; mode?: 'test' | 'live' }): Promise<Tenant> {
   const [row] = await sql<Tenant[]>`
-    INSERT INTO tenants (name, email)
-    VALUES (${input.name}, ${input.email})
+    INSERT INTO tenants (name, email, mode)
+    VALUES (${input.name}, ${input.email}, ${input.mode ?? 'test'})
     RETURNING *
   `;
   return row!;
