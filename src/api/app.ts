@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { requestIdMiddleware } from './middleware/request-id';
 import { loggingMiddleware } from './middleware/logger';
 import { errorHandler } from './middleware/error-handler';
+import { rateLimiter } from './middleware/rate-limiter';
 import { getDb } from '../db/client';
 import { tenantRoutes } from './routes/tenant.routes';
 import { planRoutes } from './routes/plan.routes';
@@ -60,6 +61,9 @@ export function createApp() {
 
   // API v1 routes
   const v1 = new Hono();
+
+  v1.use(rateLimiter({ windowMs: 60_000, maxRead: 100, maxWrite: 20 }));
+
   v1.route('/tenants', tenantRoutes);
   v1.route('/plans', planRoutes);
   v1.route('/coupons', couponRoutes);
