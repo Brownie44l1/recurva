@@ -1,6 +1,6 @@
 # Recurva Infrastructure Handover Document
 
-> **Last Updated:** June 28, 2026  
+> **Last Updated:** July 2, 2026  
 > **Author:** Apataomotayo  
 > **Domain:** recurva.xyz  
 > **Purpose:** This document provides a complete overview of the Recurva server infrastructure for any agent, developer, or DevOps engineer taking over or assisting with deployment and maintenance.
@@ -137,24 +137,28 @@ oci iam user get --user-id ocid1.user.oc1..aaaaaaaaubhxaclblw5gvu3k6623lfuc5g57v
 
 ## 5. SSH Access
 
-### SSH Key
+### SSH Keys
 | Property | Value |
 |----------|-------|
 | **Key Type** | ED25519 |
-| **Private Key** | `~/.ssh/recurva` (on local machine) |
-| **Public Key** | `~/.ssh/recurva.pub` |
+| **Interactive Key** | `~/.ssh/recurva` (passphrase-protected, for manual use) |
+| **CI/CD Deploy Key** | `~/.ssh/recurva-deploy` (no passphrase, used by GitHub Actions) |
+| **Public Keys** | `~/.ssh/recurva.pub`, `~/.ssh/recurva-deploy.pub` |
 | **SSH User** | `ubuntu` |
 
 ### Connect to Servers
 ```bash
-# Production
+# Production (interactive)
 ssh -i ~/.ssh/recurva ubuntu@129.80.235.169
 
-# Development
+# Development (interactive)
 ssh -i ~/.ssh/recurva ubuntu@157.151.216.152
+
+# With deploy key
+ssh -i ~/.ssh/recurva-deploy ubuntu@129.80.235.169
 ```
 
-> **Important:** The private key (`~/.ssh/recurva`) must be kept safe and never shared or committed to any repository. If the key is lost or compromised, a new key pair must be generated and the public key must be re-added via the OCI console or CLI.
+> **Important:** The private keys must be kept safe and never shared or committed to any repository. The deploy key (`recurva-deploy`) is stored as a GitHub Actions secret (`SSH_PRIVATE_KEY`) and must be updated there if rotated.
 
 ### Re-add SSH Key via OCI CLI (if needed)
 ```bash
@@ -413,10 +417,15 @@ docker compose up -d --build
 ## 11. Deployment Guide
 
 ### Environment Summary
-| Environment | Domain | Server IP | Branch |
-|-------------|--------|-----------|--------|
-| Development | `dev.recurva.xyz` | `157.151.216.152` | `develop` |
-| Production | `recurva.xyz` | `129.80.235.169` | `main` |
+| Environment | Domain | Server IP | Branch | Auto-deploy |
+|-------------|--------|-----------|--------|-------------|
+| Development | `dev.recurva.xyz` | `157.151.216.152` | `staging` | ✅ GitHub Actions (`.github/workflows/staging.yml`) |
+| Production | `recurva.xyz` | `129.80.235.169` | `main` | ✅ GitHub Actions (`.github/workflows/production.yml`) |
+
+### CI/CD Pipeline (Recommended)
+The project uses GitHub Actions for automated deployments:
+- **Push to `staging`** → triggers `.github/workflows/staging.yml` → rsyncs code to dev server → rebuilds Docker container
+- **Push to `main`** → triggers `.github/workflows/production.yml` → runs tests → rsyncs code to prod server → rebuilds → runs migrations
 
 ### Manual Deployment Steps
 ```bash
@@ -426,15 +435,21 @@ ssh -i ~/.ssh/recurva ubuntu@SERVER_IP
 # 2. Navigate to app directory
 cd /opt/recurva
 
-# 3. Pull latest code
-git pull origin main  # or develop for dev
-
-# 4. Rebuild Docker image
+# 3. Rebuild Docker image (picks up latest code + .env changes)
 docker compose up -d --build
+
+# 4. Run migrations (if schema changed)
+docker run --rm \
+  -v /opt/recurva:/app \
+  -w /app \
+  --network "$(docker inspect recurva-db -f '{{range $net, $v := .NetworkSettings.Networks}}{{$net}}{{end}}')" \
+  --env-file /opt/recurva/.env \
+  oven/bun:1 \
+  bun run src/db/migrate.ts
 
 # 5. Verify the app is running
 docker ps
-curl http://localhost:3000
+curl http://localhost:3000/health
 ```
 
 ### Recommended Deployment Directory Structure
@@ -510,12 +525,12 @@ Namecheap email (3 free mailboxes for `recurva.xyz`) has not been configured yet
 
 ## 14. TODO / Pending Tasks
 
-- [ ] Set up Nginx config for `recurva.xyz` and `dev.recurva.xyz`
-- [ ] Get SSL certificates via Certbot for all domains
-- [ ] Configure Cloudflare SSL to **Full (Strict)** mode
+- [x] Set up Nginx config for `recurva.xyz` and `dev.recurva.xyz`
+- [x] Get SSL certificates via Certbot for all domains
+- [x] Deploy the actual application via Docker
+- [x] Set up GitHub Actions for CI/CD auto-deployment
+- [ ] Configure Cloudflare SSL to **Full (Strict)** mode (currently Flexible)
 - [ ] Set up Namecheap email MX records in Cloudflare
-- [ ] Deploy the actual application via Docker
-- [ ] Set up GitHub Actions for CI/CD auto-deployment
 - [ ] Claim `VM.Standard.A1.Flex` instances when capacity is available
 - [ ] Migrate from Micro to A1 instances
 - [ ] Set up database backups
