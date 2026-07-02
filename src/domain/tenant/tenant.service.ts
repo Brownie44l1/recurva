@@ -42,12 +42,15 @@ export async function getTenantById(sql: Sql, tenantId: string): Promise<Tenant>
 }
 
 export async function authenticateTenant(sql: Sql, rawKey: string): Promise<Tenant> {
+  const prefix = rawKey.slice(0, KEY_PREFIX.length + 6);
+
   const keys = await sql<{ keyHash: string; tenant: Tenant; keyId: string }[]>`
     SELECT k.key_hash AS "keyHash", k.id AS "keyId",
       row_to_json(t.*)::jsonb AS tenant
     FROM tenant_api_keys k
     JOIN tenants t ON t.id = k.tenant_id
     WHERE k.is_active = TRUE
+      AND k.key_prefix = ${prefix}
       AND (k.expires_at IS NULL OR k.expires_at > NOW())
       AND t.is_active = TRUE
   `;
