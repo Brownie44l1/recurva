@@ -15,7 +15,13 @@ export type SubscriptionEvent =
   | 'PAUSE'
   | 'RESUME'
   | 'MAX_DUNNING_REACHED'
-  | 'REACTIVATE';
+  | 'REACTIVATE'
+  | 'CHANGE_PLAN';
+
+export interface ChangePlanInput {
+  newPlanId: string;
+  immediate: boolean;
+}
 
 export interface Subscription {
   id: string;

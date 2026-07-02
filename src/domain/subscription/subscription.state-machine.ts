@@ -26,11 +26,13 @@ const TRANSITION_TABLE: Record<SubscriptionStatus, Partial<Record<SubscriptionEv
     PAYMENT_FAILED: { nextState: 'past_due', sideEffects: ['START_DUNNING'] },
     CANCEL: { nextState: 'cancelled', sideEffects: ['CANCEL_IMMEDIATELY'] },
     PAUSE: { nextState: 'paused', sideEffects: ['PAUSE_TRIAL'] },
+    CHANGE_PLAN: { nextState: 'trialing', sideEffects: [] },
   },
   active: {
     PAYMENT_FAILED: { nextState: 'past_due', sideEffects: ['START_DUNNING'] },
     CANCEL: { nextState: 'cancelled', sideEffects: ['SCHEDULE_CANCELLATION'] },
     PAUSE: { nextState: 'paused', sideEffects: ['PAUSE_BILLING'] },
+    CHANGE_PLAN: { nextState: 'active', sideEffects: [] },
   },
   past_due: {
     PAYMENT_SUCCESS: { nextState: 'active', sideEffects: ['CLEAR_DUNNING', 'ACTIVATE'] },
@@ -40,6 +42,7 @@ const TRANSITION_TABLE: Record<SubscriptionStatus, Partial<Record<SubscriptionEv
   paused: {
     RESUME: { nextState: 'active', sideEffects: ['RESUME_BILLING'] },
     CANCEL: { nextState: 'cancelled', sideEffects: ['CANCEL_IMMEDIATELY'] },
+    CHANGE_PLAN: { nextState: 'paused', sideEffects: [] },
   },
   cancelled: {
     REACTIVATE: { nextState: 'active', sideEffects: ['CREATE_NEW_CYCLE'] },

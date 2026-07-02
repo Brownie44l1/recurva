@@ -151,6 +151,36 @@ export async function updateSubscriptionTrialEnd(
   return row!;
 }
 
+export async function updateSubscriptionPlan(
+  sql: Sql,
+  tenantId: string,
+  subscriptionId: string,
+  planId: string,
+): Promise<Subscription> {
+  const [row] = await sql<Subscription[]>`
+    UPDATE subscriptions
+    SET plan_id = ${planId}, updated_at = NOW()
+    WHERE tenant_id = ${tenantId} AND id = ${subscriptionId}
+    RETURNING *
+  `;
+  return row!;
+}
+
+export async function updateSubscriptionCreditBalance(
+  sql: Sql,
+  tenantId: string,
+  subscriptionId: string,
+  creditBalance: number,
+): Promise<Subscription> {
+  const [row] = await sql<Subscription[]>`
+    UPDATE subscriptions
+    SET credit_balance = ${creditBalance}, updated_at = NOW()
+    WHERE tenant_id = ${tenantId} AND id = ${subscriptionId}
+    RETURNING *
+  `;
+  return row!;
+}
+
 export async function listSubscriptionsByTenant(sql: Sql, tenantId: string, status?: string, limit: number = 20, offset: number = 0): Promise<Subscription[]> {
   return sql<Subscription[]>`
     SELECT * FROM subscriptions
