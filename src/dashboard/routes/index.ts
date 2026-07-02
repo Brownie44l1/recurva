@@ -28,21 +28,21 @@ router.post('/auth', zValidator('json', z.object({
   const sql = getDb();
   const { email, password } = c.req.valid('json');
 
-  const rows = await sql<{ id: string; tenant_id: string; email: string; password_hash: string }[]>`
+  const rows = await sql<{ id: string; tenantId: string; email: string; passwordHash: string }[]>`
     SELECT * FROM tenant_admin_credentials WHERE email = ${email} LIMIT 1
   `;
   const admin = rows[0];
   if (!admin) return c.json({ error: 'invalid_credentials' }, 401);
 
-  const valid = await bcrypt.compare(password, admin.password_hash);
+  const valid = await bcrypt.compare(password, admin.passwordHash);
   if (!valid) return c.json({ error: 'invalid_credentials' }, 401);
 
   const token = jwt.sign(
-    { tenantId: admin.tenant_id, email: admin.email, role: 'admin', exp: Math.floor(Date.now() / 1000) + 86400 },
+    { tenantId: admin.tenantId, email: admin.email, role: 'admin', exp: Math.floor(Date.now() / 1000) + 86400 },
     config.JWT_SECRET,
   );
 
-  return c.json({ token, tenantId: admin.tenant_id });
+  return c.json({ token, tenantId: admin.tenantId });
 });
 
 router.get('/metrics', adminAuth, async (c: any) => {
