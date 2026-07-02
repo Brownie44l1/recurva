@@ -129,9 +129,9 @@ bun run typecheck    # TypeScript type checking
 | [API Reference](docs/api-reference.md) | All endpoints, request/response schemas, error codes |
 | [Quickstart](docs/quickstart.md) | Integration guide |
 | [Postman Collection](docs/recurva.postman_collection.json) | Import for interactive testing |
-| [Nomba Guide](nomba.md) | Payment processor integration details |
-| [Architecture](docs/recurva_architecture.md) | System design |
-| [Server Setup](docs/recurva-server.md) | Infrastructure handover |
+| [Nomba Guide](docs/nomba.md) | Payment processor integration details |
+| [Architecture](docs/architecture.md) | System design |
+| [Server Setup](docs/server.md) | Infrastructure handover |
 
 ## License
 
