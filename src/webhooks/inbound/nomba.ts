@@ -1,4 +1,5 @@
 import type { Context } from 'hono';
+import type { Sql, TransactionSql } from 'postgres';
 import { getDb } from '../../db/client';
 import * as pendingCheckoutQueries from '../../db/queries/pending-checkout.queries';
 import * as paymentMethodQueries from '../../db/queries/payment-method.queries';
@@ -62,44 +63,50 @@ export async function handleNombaCheckoutCallback(c: Context): Promise<Response>
 
   const sql = getDb();
 
-  const checkout = await pendingCheckoutQueries.findPendingCheckoutByReference(sql, payload.data.orderReference);
-  if (!checkout) {
-    logger.warn({ orderReference: payload.data.orderReference }, 'Pending checkout not found');
-    return c.json({ error: 'checkout_not_found' }, 404);
-  }
+  const result = await sql.begin(async (tx) => {
+    const s = tx as unknown as Sql;
 
-  if (checkout.consumed) {
-    return c.json({ status: 'already_processed' });
-  }
-
-  const pm = await paymentMethodQueries.insertPaymentMethod(sql, checkout.tenantId, checkout.customerId, {
-    nombaToken: payload.data.token,
-    cardLast4: payload.data.last4,
-    cardBrand: payload.data.cardBrand,
-    cardExpMonth: payload.data.expMonth,
-    cardExpYear: payload.data.expYear,
-  });
-
-  await pendingCheckoutQueries.markPendingCheckoutConsumed(sql, checkout.id);
-
-  const subscription = await subscriptionQueries.findSubscriptionById(sql, checkout.tenantId, checkout.subscriptionId);
-  if (subscription) {
-    if (!subscription.paymentMethodId) {
-      await subscriptionQueries.updateSubscriptionPaymentMethod(sql, checkout.tenantId, checkout.subscriptionId, pm.id);
+    const checkout = await pendingCheckoutQueries.findPendingCheckoutForUpdate(s, payload.data.orderReference);
+    if (!checkout) {
+      logger.warn({ orderReference: payload.data.orderReference }, 'Pending checkout not found');
+      return { status: 404, body: { error: 'checkout_not_found' } };
     }
 
-    if (!pm.isPrimary) {
-      const customer = await customerQueries.findCustomerById(sql, checkout.tenantId, checkout.customerId);
-      if (customer) {
-        await paymentMethodQueries.promoteToPrimary(sql, checkout.customerId, pm.id);
+    if (checkout.consumed) {
+      return { status: 200, body: { status: 'already_processed' } };
+    }
+
+    const pm = await paymentMethodQueries.insertPaymentMethod(s, checkout.tenantId, checkout.customerId, {
+      nombaToken: payload.data.token,
+      cardLast4: payload.data.last4,
+      cardBrand: payload.data.cardBrand,
+      cardExpMonth: payload.data.expMonth,
+      cardExpYear: payload.data.expYear,
+    });
+
+    await pendingCheckoutQueries.markPendingCheckoutConsumed(s, checkout.id);
+
+    const subscription = await subscriptionQueries.findSubscriptionById(s, checkout.tenantId, checkout.subscriptionId);
+    if (subscription) {
+      if (!subscription.paymentMethodId) {
+        await subscriptionQueries.updateSubscriptionPaymentMethod(s, checkout.tenantId, checkout.subscriptionId, pm.id);
+      }
+
+      if (!pm.isPrimary) {
+        const customer = await customerQueries.findCustomerById(s, checkout.tenantId, checkout.customerId);
+        if (customer) {
+          await paymentMethodQueries.promoteToPrimary(s, checkout.customerId, pm.id);
+        }
       }
     }
-  }
 
-  logger.info(
-    { orderReference: checkout.orderReference, paymentMethodId: pm.id, subscriptionId: checkout.subscriptionId },
-    'Checkout callback processed',
-  );
+    logger.info(
+      { orderReference: checkout.orderReference, paymentMethodId: pm.id, subscriptionId: checkout.subscriptionId },
+      'Checkout callback processed',
+    );
 
-  return c.json({ status: 'processed', paymentMethodId: pm.id });
+    return { status: 200, body: { status: 'processed', paymentMethodId: pm.id } };
+  });
+
+  return c.json(result.body, result.status as any);
 }
