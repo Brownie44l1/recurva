@@ -6,6 +6,7 @@ import * as subscriptionQueries from '../../db/queries/subscription.queries';
 import * as paymentMethodQueries from '../../db/queries/payment-method.queries';
 import { buildInvoice, finalizeInvoice } from '../invoice/invoice.service';
 import { transitionState } from '../subscription/subscription.service';
+import { executeSideEffects } from '../subscription/side-effect.dispatcher';
 
 function asSql(tx: TransactionSql): Sql {
   return tx as unknown as Sql;
@@ -36,7 +37,8 @@ export async function billSubscription(
       : null;
 
     if (!pm) {
-      await transitionState(s, tenantId, subscriptionId, 'PAYMENT_FAILED', context);
+      const { subscription: sub, sideEffects } = await transitionState(s, tenantId, subscriptionId, 'PAYMENT_FAILED', context);
+      await executeSideEffects(s, tenantId, sub, sideEffects, context, { invoiceId: invoice.id });
       return { success: false, invoiceId: invoice.id, chargeId: null, status: 'dunning' };
     }
 
