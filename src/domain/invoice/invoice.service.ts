@@ -1,6 +1,7 @@
 import type { Sql } from 'postgres';
 import type { Invoice, InvoiceLineItem, BuildInvoiceOptions } from './invoice.types';
 import * as queries from '../../db/queries/invoice.queries';
+import * as subscriptionQueries from '../../db/queries/subscription.queries';
 import * as planQueries from '../../db/queries/plan.queries';
 import * as usageQueries from '../../db/queries/usage.queries';
 import * as couponQueries from '../../db/queries/coupon.queries';
@@ -121,6 +122,7 @@ export async function buildInvoice(
         amount: -creditUse,
       });
       lineItems.push(creditLineItem);
+      await subscriptionQueries.decrementCreditBalance(sql, subscription.id, creditUse);
     }
   }
 
