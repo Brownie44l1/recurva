@@ -4,6 +4,7 @@ export interface Tenant {
   email: string;
   nombaAccountId: string;
   webhookSecret: string;
+  mode: 'test' | 'live';
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
