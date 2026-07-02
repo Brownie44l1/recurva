@@ -16,7 +16,8 @@ export type SubscriptionEvent =
   | 'RESUME'
   | 'MAX_DUNNING_REACHED'
   | 'REACTIVATE'
-  | 'CHANGE_PLAN';
+  | 'CHANGE_PLAN'
+  | 'GRACE_PERIOD_ENDED';
 
 export interface ChangePlanInput {
   newPlanId: string;
