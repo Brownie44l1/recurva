@@ -56,18 +56,43 @@ export async function billSubscription(
       amount: finalized.amountDue,
     });
 
-    await invoiceQueries.updateChargeStatus(s, charge.id, 'succeeded', {
-      nombaChargeId: `pending_${charge.id}`,
-    });
+    try {
+      const tenant = await tenantQueries.findTenantById(s, tenantId);
+      if (!tenant) {
+        return { success: false, invoiceId: invoice.id, chargeId: charge.id, status: 'failed', failureReason: 'Tenant not found' };
+      }
 
-    await invoiceQueries.updateInvoiceStatus(s, invoice.id, 'paid');
+      const result = await chargeCard(tenant, {
+        token: pm.nombaToken,
+        amount: finalized.amountDue,
+        currency: subscription.currency,
+        transactionReference: charge.id,
+        callbackUrl: '',
+      });
 
-    const nextPeriodStart = new Date(subscription.currentPeriodEnd);
-    const nextPeriodEnd = new Date(nextPeriodStart.getTime() + (subscription.currentPeriodEnd.getTime() - subscription.currentPeriodStart.getTime()));
+      await invoiceQueries.updateChargeStatus(s, charge.id, 'succeeded', {
+        nombaChargeId: result.chargeId,
+        nombaReference: result.transactionId,
+      });
 
-    await subscriptionQueries.updateSubscriptionPeriod(s, tenantId, subscriptionId, nextPeriodStart, nextPeriodEnd);
+      await invoiceQueries.updateInvoiceStatus(s, invoice.id, 'paid');
 
-    return { success: true, invoiceId: invoice.id, chargeId: charge.id, status: 'paid' };
+      const nextPeriodStart = new Date(subscription.currentPeriodEnd);
+      const nextPeriodEnd = new Date(nextPeriodStart.getTime() + (subscription.currentPeriodEnd.getTime() - subscription.currentPeriodStart.getTime()));
+
+      await subscriptionQueries.updateSubscriptionPeriod(s, tenantId, subscriptionId, nextPeriodStart, nextPeriodEnd);
+
+      return { success: true, invoiceId: invoice.id, chargeId: charge.id, status: 'paid' };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      await invoiceQueries.updateChargeStatus(s, charge.id, 'failed', {
+        failureMessage: message,
+      });
+
+      await transitionState(s, tenantId, subscriptionId, 'PAYMENT_FAILED', context);
+
+      return { success: false, invoiceId: invoice.id, chargeId: charge.id, status: 'dunning', failureReason: message };
+    }
   });
 }
 
@@ -95,7 +120,6 @@ export async function retryCharge(
     if (!pm) {
       pm = await paymentMethodQueries.findBackupPaymentMethod(s, tenantId, subscription.customerId);
     }
-
     const charge = await invoiceQueries.insertCharge(s, tenantId, {
       customerId: invoice.customerId,
       invoiceId: invoice.id,
@@ -133,7 +157,6 @@ export async function retryCharge(
       await invoiceQueries.updateInvoiceStatus(s, invoice.id, 'paid');
 
       await transitionState(s, tenantId, subscription.id, 'PAYMENT_SUCCESS', { actorType: 'system', actorId: 'retry-charge' });
-
       return { success: true, invoiceId: invoice.id, chargeId: charge.id, status: 'paid' };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
