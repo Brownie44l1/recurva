@@ -13,6 +13,7 @@ import { subscriptionRoutes } from './routes/subscription.routes';
 import { usageRoutes } from './routes/usage.routes';
 import { invoiceRoutes } from './routes/invoice.routes';
 import { webhookRoutes } from './routes/webhook.routes';
+import { checkoutRoutes } from './routes/checkout.routes';
 import { portalRoutes } from '../portal/routes';
 import { dashboardRoutes } from '../dashboard/routes';
 import { reportRoutes } from '../reports/routes';
@@ -81,6 +82,7 @@ export function createApp() {
   v1.route('/subscriptions', subscriptionRoutes);
   v1.route('/invoices', invoiceRoutes);
   v1.route('/webhooks', webhookRoutes);
+  v1.route('/checkout', checkoutRoutes);
 
   // Usage routes are mounted under subscriptions
   v1.route('/subscriptions', usageRoutes);

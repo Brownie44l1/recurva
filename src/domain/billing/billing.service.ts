@@ -9,6 +9,7 @@ import { buildInvoice, finalizeInvoice } from '../invoice/invoice.service';
 import { chargeCard } from '../nomba/nomba.service';
 import { transitionState } from '../subscription/subscription.service';
 import { executeSideEffects } from '../subscription/side-effect.dispatcher';
+import { config } from '../../config';
 
 function asSql(tx: TransactionSql): Sql {
   return tx as unknown as Sql;
@@ -92,7 +93,7 @@ export async function billSubscription(
         amount: finalized.amountDue,
         currency: subscription.currency,
         transactionReference: charge.id,
-        callbackUrl: '',
+        callbackUrl: config.NOMBA_CALLBACK_URL,
       });
 
       await invoiceQueries.updateChargeStatus(s, charge.id, 'succeeded', {
@@ -194,7 +195,7 @@ export async function retryCharge(
         amount: invoice.amountDue,
         currency: invoice.currency,
         transactionReference: charge.id,
-        callbackUrl: '',
+        callbackUrl: config.NOMBA_CALLBACK_URL,
       });
 
       await invoiceQueries.updateChargeStatus(s, charge.id, 'succeeded', {

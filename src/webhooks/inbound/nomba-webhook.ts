@@ -78,15 +78,17 @@ export async function handleNombaWebhook(c: Context): Promise<Response> {
     }
   } else {
     logger.warn({ event: payload.event, eventId: payload.eventId }, 'Unknown Nomba webhook event');
-    await sql`
-      INSERT INTO dead_letter_webhooks (nomba_event_id, event_type, payload, raw_body, reason)
-      VALUES (${payload.eventId}, ${payload.event}, ${sql.json(payload.data as any)}, ${rawBody}, 'unknown_event_type')
-    `;
-    await sql`
-      INSERT INTO webhook_events (nomba_event_id, event_type, payload)
-      VALUES (${payload.eventId}, ${payload.event}, ${sql.json(payload.data as any)})
-      ON CONFLICT (nomba_event_id) DO NOTHING
-    `;
+    await sql.begin(async (tx) => {
+      await tx`
+        INSERT INTO dead_letter_webhooks (nomba_event_id, event_type, payload, raw_body, reason)
+        VALUES (${payload.eventId}, ${payload.event}, ${sql.json(payload.data as any)}, ${rawBody}, 'unknown_event_type')
+      `;
+      await tx`
+        INSERT INTO webhook_events (nomba_event_id, event_type, payload)
+        VALUES (${payload.eventId}, ${payload.event}, ${sql.json(payload.data as any)})
+        ON CONFLICT (nomba_event_id) DO NOTHING
+      `;
+    });
   }
 
   return c.json({ status: 'processed' });
