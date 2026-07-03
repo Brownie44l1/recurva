@@ -25,6 +25,7 @@ const envSchema = z.object({
   NOMBA_LIVE_CLIENT_ID: z.string().default(''),
   NOMBA_LIVE_PRIVATE_KEY: z.string().default(''),
   NOMBA_WEBHOOK_SECRET: z.string().default(process.env.NOMBA_INBOUND_WEBHOOK_SECRET || ''),
+  NOMBA_CALLBACK_URL: z.string().default(''),
   ENCRYPTION_KEY: z.string().default(''),
   BILLING_CRON: z.string().default('0 6 * * *'),
   DUNNING_CRON: z.string().default('0 * * * *'),
