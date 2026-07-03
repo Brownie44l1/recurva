@@ -9,7 +9,7 @@ const router = new Hono();
 
 router.use('*', tenantAuthMiddleware);
 
-router.post('/subscriptions/:id/usage', zValidator('json', reportUsageSchema), async (c) => {
+router.post('/:id/usage', zValidator('json', reportUsageSchema), async (c) => {
   const sql = getDb();
   const tenant = c.var.tenant;
   const input = c.req.valid('json');
@@ -20,7 +20,7 @@ router.post('/subscriptions/:id/usage', zValidator('json', reportUsageSchema), a
   return c.json({ usage: record }, 201);
 });
 
-router.get('/subscriptions/:id/usage', async (c) => {
+router.get('/:id/usage', async (c) => {
   const sql = getDb();
   const tenant = c.var.tenant;
   const summary = await getUsageSummary(sql, tenant.id, c.req.param('id'));

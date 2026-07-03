@@ -71,7 +71,11 @@ export async function handleNombaWebhook(c: Context): Promise<Response> {
     if (inserted.length === 0) {
       return c.json({ status: 'already_processed' });
     }
-    await handler(payload, sql);
+    try {
+      await handler(payload, sql);
+    } catch (err) {
+      logger.error({ event: payload.event, eventId: payload.eventId, err }, 'Nomba webhook handler failed');
+    }
   } else {
     logger.warn({ event: payload.event, eventId: payload.eventId }, 'Unknown Nomba webhook event');
     await sql`
