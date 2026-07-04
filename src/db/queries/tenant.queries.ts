@@ -72,3 +72,12 @@ export async function updateApiKeyLastUsed(sql: Sql, keyId: string): Promise<voi
     UPDATE tenant_api_keys SET last_used_at = NOW() WHERE id = ${keyId}
   `;
 }
+
+export async function updateTenantNombaAccountId(sql: Sql, tenantId: string, nombaAccountId: string): Promise<Tenant> {
+  const [row] = await sql<Tenant[]>`
+    UPDATE tenants SET nomba_account_id = ${nombaAccountId}, updated_at = NOW()
+    WHERE id = ${tenantId} AND is_active = TRUE
+    RETURNING *
+  `;
+  return row!;
+}

@@ -94,3 +94,34 @@ export async function cancelScheduledDunning(sql: Sql, subscriptionId: string): 
     WHERE subscription_id = ${subscriptionId} AND status = 'scheduled'
   `;
 }
+
+export async function listDunningPolicies(sql: Sql, tenantId: string): Promise<DunningPolicy[]> {
+  return sql<DunningPolicy[]>`
+    SELECT * FROM dunning_policies WHERE tenant_id = ${tenantId} ORDER BY created_at DESC
+  `;
+}
+
+export async function updateDunningPolicy(sql: Sql, policyId: string, input: {
+  name?: string;
+  retrySchedule?: unknown[];
+  finalAction?: string;
+  isDefault?: boolean;
+}): Promise<DunningPolicy> {
+  const [row] = await sql<DunningPolicy[]>`
+    UPDATE dunning_policies SET
+      name = COALESCE(${input.name ?? null}, name),
+      retry_schedule = COALESCE(${input.retrySchedule ? sql.json(input.retrySchedule as any) : null}, retry_schedule),
+      final_action = COALESCE(${input.finalAction ?? null}, final_action),
+      is_default = COALESCE(${input.isDefault ?? null}, is_default)
+    WHERE id = ${policyId}
+    RETURNING *
+  `;
+  return row!;
+}
+
+export async function unsetDefaultDunningPolicy(sql: Sql, tenantId: string): Promise<void> {
+  await sql`
+    UPDATE dunning_policies SET is_default = FALSE
+    WHERE tenant_id = ${tenantId} AND is_default = TRUE
+  `;
+}
