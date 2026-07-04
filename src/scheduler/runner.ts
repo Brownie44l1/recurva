@@ -4,6 +4,7 @@ import { getDb } from '../db/client';
 import { runBillingCycle } from './billing';
 import { executeDunningRetries } from './dunning';
 import { processOutboundDeliveries } from '../webhooks/outbound/delivery';
+import { reportBillingError } from '../observability/report-error';
 
 function parseCronMinuteHour(cron: string): { hour: number; minute: number } | null {
   const parts = cron.trim().split(/\s+/);
@@ -25,6 +26,16 @@ function shouldRunBilling(): boolean {
   if (!cron) return false;
 
   return now.getUTCHours() === cron.hour && now.getUTCMinutes() === cron.minute;
+}
+
+export async function pingHealthcheck(url?: string): Promise<void> {
+  const pingUrl = url ?? config.HEALTHCHECK_DUNNING_URL;
+  if (!pingUrl) return;
+  try {
+    await fetch(pingUrl, { method: 'GET' });
+  } catch {
+    logger.warn({ url: pingUrl }, 'Healthcheck ping failed');
+  }
 }
 
 export function startSchedulers(): void {
@@ -49,8 +60,9 @@ export function startSchedulers(): void {
     try {
       const sql = getDb();
       await executeDunningRetries(sql);
+      await pingHealthcheck();
     } catch (err) {
-      logger.error({ err }, 'Dunning scheduler error');
+      reportBillingError({}, 'Dunning scheduler error', err);
     }
   }, 60_000);
 

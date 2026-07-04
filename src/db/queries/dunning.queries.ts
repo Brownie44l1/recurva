@@ -70,6 +70,14 @@ export async function findDunningAttemptsBySubscriptionForUpdate(sql: Sql, subsc
   `;
 }
 
+export async function findDunningAttemptsByInvoice(sql: Sql, subscriptionId: string, invoiceId: string): Promise<DunningAttempt[]> {
+  return sql<DunningAttempt[]>`
+    SELECT * FROM dunning_attempts
+    WHERE subscription_id = ${subscriptionId} AND invoice_id = ${invoiceId}
+    ORDER BY attempt_number ASC
+  `;
+}
+
 export async function updateDunningAttempt(sql: Sql, attemptId: string, updates: {
   status: string;
   chargeId?: string | null;

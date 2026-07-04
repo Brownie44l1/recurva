@@ -2,6 +2,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import { getDb, closeDb } from '../../src/db/client';
 import * as subscriptionQueries from '../../src/db/queries/subscription.queries';
 import * as invoiceQueries from '../../src/db/queries/invoice.queries';
+import * as dunningQueries from '../../src/db/queries/dunning.queries';
+import { initiateDunning } from '../../src/domain/dunning/dunning.service';
 import { buildInvoice, voidInvoice } from '../../src/domain/invoice/invoice.service';
 import { transitionState } from '../../src/domain/subscription/subscription.service';
 import { executeSideEffects } from '../../src/domain/subscription/side-effect.dispatcher';
@@ -254,6 +256,38 @@ describe('Billing Lifecycle Integration', () => {
       for (const row of remaining) {
         expect(row.status).not.toBe('scheduled');
       }
+
+      await sql`DELETE FROM dunning_attempts WHERE subscription_id = ${sub!.id}`;
+      await sql`DELETE FROM invoices WHERE id = ${inv!.id}`;
+      await sql`DELETE FROM subscriptions WHERE id = ${sub!.id}`;
+    });
+  });
+
+  describe('dunning uniqueness', () => {
+    it('initiateDunning does not create duplicate rows when called twice for same subscription+invoice', async () => {
+      const now = new Date();
+      const periodEnd = new Date(now.getTime() + 30 * 86400000);
+      const [sub] = await sql`
+        INSERT INTO subscriptions (tenant_id, customer_id, plan_id, currency, status, current_period_start, current_period_end)
+        VALUES (${tenantId}, ${customerId}, ${planId}, 'NGN', 'active', ${now}, ${periodEnd})
+        RETURNING id
+      `;
+
+      const idemKey = `test_dunning_dup_${Date.now()}`;
+      const [inv] = await sql`
+        INSERT INTO invoices (tenant_id, customer_id, subscription_id, currency, subtotal, total, amount_due, period_start, period_end, due_date, idempotency_key)
+        VALUES (${tenantId}, ${customerId}, ${sub!.id}, 'NGN', 5000, 5000, 5000, ${now}, ${periodEnd}, ${periodEnd}, ${idemKey})
+        RETURNING id
+      `;
+
+      const firstResult = await initiateDunning(sql, tenantId, sub!.id, inv!.id);
+      expect(firstResult.length).toBeGreaterThan(0);
+
+      const secondResult = await initiateDunning(sql, tenantId, sub!.id, inv!.id);
+      expect(secondResult.length).toBe(firstResult.length);
+
+      const allRows = await dunningQueries.findDunningAttemptsBySubscription(sql, sub!.id);
+      expect(allRows.length).toBe(firstResult.length);
 
       await sql`DELETE FROM dunning_attempts WHERE subscription_id = ${sub!.id}`;
       await sql`DELETE FROM invoices WHERE id = ${inv!.id}`;

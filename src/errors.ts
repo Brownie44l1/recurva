@@ -62,3 +62,10 @@ export class CouponNotFoundError extends DomainError {
     super('coupon_not_found', `Coupon with code ${code} not found`, 404);
   }
 }
+
+export class NombaTimeoutError extends Error {
+  constructor(timeoutMs: number, operation: string) {
+    super(`Nomba API request timed out after ${timeoutMs}ms during ${operation}`);
+    this.name = 'NombaTimeoutError';
+  }
+}

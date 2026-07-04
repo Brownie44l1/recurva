@@ -1,5 +1,6 @@
 import type { Sql } from 'postgres';
 import { logger } from '../logger';
+import { reportBillingError } from '../observability/report-error';
 import * as dunningQueries from '../db/queries/dunning.queries';
 import * as invoiceQueries from '../db/queries/invoice.queries';
 import * as subscriptionQueries from '../db/queries/subscription.queries';
@@ -31,7 +32,7 @@ export async function executeDunningRetries(sql: Sql): Promise<void> {
         status: result.success ? 'succeeded' : 'failed',
         chargeId: result.chargeId ?? undefined,
         executedAt: new Date(),
-        usedBackupCard: attempt.attemptNumber > 1,
+        usedBackupCard: result.usedBackupCard ?? false,
       });
 
       if (!result.success) {
@@ -62,7 +63,11 @@ export async function executeDunningRetries(sql: Sql): Promise<void> {
         'Dunning retry processed',
       );
     } catch (err) {
-      logger.error({ attemptId: attempt.id, err }, 'Dunning retry failed');
+      reportBillingError(
+        { attemptId: attempt.id, subscriptionId: attempt.subscriptionId, invoiceId: attempt.invoiceId },
+        'Dunning retry failed',
+        err,
+      );
       try {
         await dunningQueries.updateDunningAttempt(sql, attempt.id, { status: 'failed' });
       } catch { /* ignore */ }

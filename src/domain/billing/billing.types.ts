@@ -4,6 +4,7 @@ export interface BillingResult {
   chargeId: string | null;
   status: 'paid' | 'failed' | 'dunning';
   failureReason?: string;
+  usedBackupCard?: boolean;
 }
 
 export interface BillingContext {

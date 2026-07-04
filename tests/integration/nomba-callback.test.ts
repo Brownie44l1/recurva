@@ -134,6 +134,73 @@ describe('Nomba Checkout Callback Integration', () => {
     expect(sub!.paymentMethodId).toBe(result.paymentMethodId);
   });
 
+  // ─── Signature rejection tests ──────────────────────────────────────────
+
+  it('rejects checkout callback with missing signature header and payload signature', async () => {
+    const data = {
+      orderReference,
+      status: 'success' as const,
+      token: 'tok_test',
+      last4: '1234',
+      cardBrand: 'visa',
+      expMonth: 12,
+      expYear: 2029,
+      amount: 5000,
+      currency: 'NGN',
+      transactionId: 'txn_sig_test',
+    };
+
+    const payload = { event: 'checkout.completed', data };
+
+    const response = await fetch(`http://localhost:${config.PORT}/webhooks/nomba/checkout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    expect(response.status).toBe(401);
+    const result = await response.json() as { error: string };
+    expect(result.error).toBe('missing_signature');
+
+    const sub = await subscriptionQueries.findSubscriptionById(sql, tenantId, subscriptionId);
+    expect(sub).not.toBeNull();
+    expect(sub!.status).toBe('active');
+  });
+
+  it('rejects checkout callback with tampered signature', async () => {
+    const data = {
+      orderReference,
+      status: 'success' as const,
+      token: 'tok_test_2',
+      last4: '5678',
+      cardBrand: 'mastercard',
+      expMonth: 6,
+      expYear: 2030,
+      amount: 5000,
+      currency: 'NGN',
+      transactionId: 'txn_sig_test_2',
+    };
+
+    const payload = { event: 'checkout.completed', data };
+
+    const response = await fetch(`http://localhost:${config.PORT}/webhooks/nomba/checkout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'nomba-signature': 'a'.repeat(64),
+      },
+      body: JSON.stringify(payload),
+    });
+
+    expect(response.status).toBe(401);
+    const result = await response.json() as { error: string };
+    expect(result.error).toBe('invalid_signature');
+
+    const sub = await subscriptionQueries.findSubscriptionById(sql, tenantId, subscriptionId);
+    expect(sub).not.toBeNull();
+    expect(sub!.status).toBe('active');
+  });
+
   it('is idempotent on duplicate callback', async () => {
     const data = {
       orderReference,

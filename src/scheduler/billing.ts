@@ -1,5 +1,6 @@
 import type { Sql } from 'postgres';
 import { logger } from '../logger';
+import { reportBillingError } from '../observability/report-error';
 import { findDueForBilling, updateSubscriptionPeriod } from '../db/queries/subscription.queries';
 import * as billingRunQueries from '../db/queries/billing-run.queries';
 import { billSubscription } from '../domain/billing/billing.service';
@@ -65,9 +66,10 @@ export async function runBillingCycle(sql: Sql): Promise<{
           }
         } catch (err) {
           result.failed++;
-          logger.error(
-            { subscriptionId: subscription.id, tenantId: subscription.tenantId, err },
+          reportBillingError(
+            { subscriptionId: subscription.id, tenantId: subscription.tenantId },
             'Billing cycle failed for subscription',
+            err,
           );
         }
       }
@@ -95,7 +97,7 @@ export async function runBillingCycle(sql: Sql): Promise<{
       chargesFailed: result.chargesFailed,
       errorMessage: (err as Error).message,
     });
-    logger.error({ err }, 'Billing cycle failed');
+    reportBillingError({}, 'Billing cycle failed', err);
   } finally {
     await releaseBillingLock(sql);
   }
