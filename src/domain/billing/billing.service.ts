@@ -15,6 +15,7 @@ import { createEmailClient } from '../../infrastructure/email/email.client';
 import { createEmailService } from '../../infrastructure/email/email.service';
 import type { EmailService } from '../../infrastructure/email/email.service';
 import { logger } from '../../logger';
+import { getFxRate, convertAmount } from '../fx/fx.service';
 
 function asSql(tx: TransactionSql): Sql {
   return tx as unknown as Sql;
@@ -144,24 +145,51 @@ export async function billSubscription(
       return { result: { success: false, invoiceId: invoice.id, chargeId: pendingCharge.id, status: 'failed' as const, failureReason: 'Charge already in progress' }, email: null };
     }
 
+    const tenant = await tenantQueries.findTenantById(s, tenantId);
+    if (!tenant) {
+      return { result: { success: false, invoiceId: invoice.id, chargeId: null, status: 'failed' as const, failureReason: 'Tenant not found' }, email: null };
+    }
+
+    const processor = getPaymentProcessor(tenant);
+    const invoiceCurrency = subscription.currency;
+
+    let chargeCurrency = invoiceCurrency;
+    let chargeAmount = finalized.amountDue;
+    let fxRate: number | null = null;
+    let settlementCurrency: string | null = null;
+    let settlementAmount: number | null = null;
+
+    if (!processor.supportsCurrency(invoiceCurrency)) {
+      const defaultSettlement = 'NGN';
+      const { rate, source } = await getFxRate(invoiceCurrency, defaultSettlement);
+      fxRate = rate;
+      settlementCurrency = defaultSettlement;
+      chargeAmount = convertAmount(finalized.amountDue, rate);
+      settlementAmount = chargeAmount;
+      chargeCurrency = defaultSettlement;
+      logger.info({ invoiceCurrency, settlementCurrency: defaultSettlement, rate, source }, 'Cross-currency FX conversion applied');
+    }
+
     const charge = await invoiceQueries.insertCharge(s, tenantId, {
       customerId: subscription.customerId,
       invoiceId: invoice.id,
       paymentMethodId: pm.id,
-      currency: subscription.currency,
-      amount: finalized.amountDue,
+      currency: chargeCurrency,
+      amount: chargeAmount,
+      fxRate,
+      settlementCurrency,
+      settlementAmount,
     });
 
-    try {
-      const tenant = await tenantQueries.findTenantById(s, tenantId);
-      if (!tenant) {
-        return { result: { success: false, invoiceId: invoice.id, chargeId: charge.id, status: 'failed' as const, failureReason: 'Tenant not found' }, email: null };
-      }
+    if (fxRate !== null) {
+      await invoiceQueries.updateInvoiceFx(s, charge.invoiceId, fxRate, settlementCurrency, settlementAmount);
+    }
 
-      const chargeResult = await getPaymentProcessor(tenant).charge({
+    try {
+      const chargeResult = await processor.charge({
         token: pm.nombaToken,
-        amount: finalized.amountDue,
-        currency: subscription.currency,
+        amount: chargeAmount,
+        currency: chargeCurrency,
         transactionReference: charge.id,
         callbackUrl: config.NOMBA_CALLBACK_URL,
       });
@@ -258,24 +286,51 @@ export async function retryCharge(
       return { result: { success: false, invoiceId: invoice.id, chargeId: null, status: 'failed' as const, failureReason: 'No payment method available' }, email: null };
     }
 
+    const tenant = await tenantQueries.findTenantById(s, tenantId);
+    if (!tenant) {
+      return { result: { success: false, invoiceId: invoice.id, chargeId: null, status: 'failed' as const, failureReason: 'Tenant not found' }, email: null };
+    }
+
+    const processor = getPaymentProcessor(tenant);
+    const invoiceCurrency = invoice.currency;
+
+    let chargeCurrency = invoiceCurrency;
+    let chargeAmount = invoice.amountDue;
+    let fxRate: number | null = null;
+    let settlementCurrency: string | null = null;
+    let settlementAmount: number | null = null;
+
+    if (!processor.supportsCurrency(invoiceCurrency)) {
+      const defaultSettlement = 'NGN';
+      const { rate, source } = await getFxRate(invoiceCurrency, defaultSettlement);
+      fxRate = rate;
+      settlementCurrency = defaultSettlement;
+      chargeAmount = convertAmount(invoice.amountDue, rate);
+      settlementAmount = chargeAmount;
+      chargeCurrency = defaultSettlement;
+      logger.info({ invoiceCurrency, settlementCurrency: defaultSettlement, rate, source }, 'Cross-currency FX conversion applied');
+    }
+
     const charge = await invoiceQueries.insertCharge(s, tenantId, {
       customerId: invoice.customerId,
       invoiceId: invoice.id,
       paymentMethodId: pm.id,
-      currency: invoice.currency,
-      amount: invoice.amountDue,
+      currency: chargeCurrency,
+      amount: chargeAmount,
+      fxRate,
+      settlementCurrency,
+      settlementAmount,
     });
 
-    try {
-      const tenant = await tenantQueries.findTenantById(s, tenantId);
-      if (!tenant) {
-        return { result: { success: false, invoiceId: invoice.id, chargeId: charge.id, status: 'failed' as const, failureReason: 'Tenant not found' }, email: null };
-      }
+    if (fxRate !== null) {
+      await invoiceQueries.updateInvoiceFx(s, charge.invoiceId, fxRate, settlementCurrency, settlementAmount);
+    }
 
-      const chargeResult = await getPaymentProcessor(tenant).charge({
+    try {
+      const chargeResult = await processor.charge({
         token: pm.nombaToken,
-        amount: invoice.amountDue,
-        currency: invoice.currency,
+        amount: chargeAmount,
+        currency: chargeCurrency,
         transactionReference: charge.id,
         callbackUrl: config.NOMBA_CALLBACK_URL,
       });

@@ -110,6 +110,40 @@ export function createNombaClient(tenant: { id: string; nombaAccountId: string; 
     return result;
   }
 
+  async function customerCreate(input: { email: string; name?: string; metadata?: Record<string, unknown> }): Promise<{ customerId: string }> {
+    const response = await request<{ customerId: string; status: string; message: string }>('/v1/customers', {
+      email: input.email,
+      fullName: input.name ?? '',
+      ...(input.metadata ? { metaData: input.metadata } : {}),
+    });
+    return { customerId: response.data?.customerId ?? 'unknown' };
+  }
+
+  async function methodAttach(customerId: string, token: string): Promise<{ methodId: string; isPrimary: boolean }> {
+    const response = await request<{ methodId: string; status: string; message: string }>('/v1/payment-methods/attach', {
+      customerId,
+      tokenKey: token,
+    });
+    return {
+      methodId: response.data?.methodId ?? 'unknown',
+      isPrimary: response.data?.status === 'success',
+    };
+  }
+
+  async function transactionStatus(transactionId: string): Promise<{ status: string; amount: number; currency: string; paidAt?: string; failureCode?: string; failureMessage?: string }> {
+    const response = await request<{ status: string; amount: number; currency: string; paidAt?: string; failureCode?: string; failureMessage?: string }>('/v1/transactions/status', {
+      transactionId,
+    });
+    return {
+      status: response.data?.status ?? 'unknown',
+      amount: response.data?.amount ?? 0,
+      currency: response.data?.currency ?? 'NGN',
+      paidAt: response.data?.paidAt,
+      failureCode: response.data?.failureCode,
+      failureMessage: response.data?.failureMessage,
+    };
+  }
+
   return {
     async charge(input: ChargeInput): Promise<ChargeResult> {
       const response = await request<{
@@ -172,5 +206,9 @@ export function createNombaClient(tenant: { id: string; nombaAccountId: string; 
         amount: input.amount,
       };
     },
+
+    createCustomer: customerCreate,
+    attachPaymentMethod: methodAttach,
+    getTransactionStatus: transactionStatus,
   };
 }

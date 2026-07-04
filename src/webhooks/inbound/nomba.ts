@@ -1,133 +1,133 @@
 import type { Context } from 'hono';
-import type { Sql, TransactionSql } from 'postgres';
+import type { Sql } from 'postgres';
 import { getDb } from '../../db/client';
 import * as pendingCheckoutQueries from '../../db/queries/pending-checkout.queries';
 import * as paymentMethodQueries from '../../db/queries/payment-method.queries';
 import * as subscriptionQueries from '../../db/queries/subscription.queries';
 import * as customerQueries from '../../db/queries/customer.queries';
-import { config } from '../../config';
+import * as tenantQueries from '../../db/queries/tenant.queries';
 import { logger } from '../../logger';
-import * as crypto from 'crypto';
 import { transitionState } from '../../domain/subscription/subscription.service';
+import { NombaAdapter } from '../../domain/payment/nomba.adapter';
+import { WebhookVerificationError } from '../../domain/payment/payment-processor.interface';
+import type { NormalizedPaymentEvent } from '../../domain/payment/payment-event.types';
 
-interface NombaCheckoutCallbackPayload {
-  event: 'checkout.completed';
-  data: {
-    orderReference: string;
-    status: 'success' | 'failed';
-    token: string;
-    last4: string;
-    cardBrand: string;
-    expMonth: number;
-    expYear: number;
-    amount: number;
-    currency: string;
-    transactionId: string;
-  };
-  signature: string;
+function extractOrderReference(rawBody: string): string | null {
+  try {
+    const parsed = JSON.parse(rawBody);
+    return parsed?.data?.orderReference ?? null;
+  } catch {
+    return null;
+  }
 }
 
-const NOMBA_SIGNATURE_HEADER = 'nomba-signature';
-
-function buildHashingPayload(payload: NombaCheckoutCallbackPayload): string {
-  return [
-    payload.event,
-    payload.data.orderReference,
-    payload.data.transactionId,
-    String(payload.data.amount),
-    payload.data.currency,
-  ].join(':');
-}
-
-function verifySignature(canonical: string, signature: string): boolean {
-  const expected = crypto
-    .createHmac('sha256', config.NOMBA_WEBHOOK_SECRET)
-    .update(canonical)
-    .digest('hex');
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+function extractCheckoutSignature(rawBody: string, headerSig: string | undefined): string {
+  if (headerSig) return headerSig;
+  try {
+    const parsed = JSON.parse(rawBody);
+    return (parsed?.signature as string) ?? '';
+  } catch {
+    return '';
+  }
 }
 
 export async function handleNombaCheckoutCallback(c: Context): Promise<Response> {
   const rawBody = await c.req.text();
-  let payload: NombaCheckoutCallbackPayload;
 
-  try {
-    payload = JSON.parse(rawBody);
-  } catch {
-    return c.json({ error: 'invalid_json' }, 400);
-  }
+  const headerSig = c.req.header('nomba-signature');
+  const signature = extractCheckoutSignature(rawBody, headerSig);
+  const isMissing = !signature;
 
-  const headerSig = c.req.header(NOMBA_SIGNATURE_HEADER);
-  const providedSignature = headerSig ?? payload.signature ?? null;
-  if (!providedSignature) {
-    logger.warn({ orderReference: payload.data.orderReference }, 'Missing Nomba webhook signature');
-    return c.json({ error: 'missing_signature' }, 401);
-  }
-
-  const hashingPayload = buildHashingPayload(payload);
-
-  if (!verifySignature(hashingPayload, providedSignature)) {
-    logger.warn({ orderReference: payload.data.orderReference }, 'Invalid Nomba webhook signature');
-    return c.json({ error: 'invalid_signature' }, 401);
-  }
-
-  if (payload.event !== 'checkout.completed') {
-    return c.json({ error: 'unsupported_event' }, 400);
-  }
-
-  if (payload.data.status !== 'success') {
-    logger.info({ orderReference: payload.data.orderReference }, 'Checkout not successful, skipping');
-    return c.json({ status: 'ignored' });
+  const orderReference = extractOrderReference(rawBody);
+  if (!orderReference) {
+    return c.json({ error: 'invalid_payload' }, 400);
   }
 
   const sql = getDb();
 
+  const checkout = await pendingCheckoutQueries.findPendingCheckoutByReference(sql, orderReference);
+  if (!checkout) {
+    logger.warn({ orderReference }, 'Pending checkout not found');
+    return c.json({ error: 'checkout_not_found' }, 404);
+  }
+
+  const tenant = await tenantQueries.findTenantById(sql, checkout.tenantId);
+  if (!tenant) {
+    logger.warn({ tenantId: checkout.tenantId }, 'Tenant not found for checkout callback');
+    return c.json({ error: 'tenant_not_found' }, 404);
+  }
+
+  let event: NormalizedPaymentEvent;
+  try {
+    const adapter = new NombaAdapter(tenant);
+    event = await adapter.handleWebhook(rawBody, signature);
+  } catch (err) {
+    if (err instanceof WebhookVerificationError) {
+      logger.warn({ orderReference }, isMissing ? 'Missing Nomba webhook signature' : 'Invalid Nomba webhook signature');
+      return c.json({ error: isMissing ? 'missing_signature' : 'invalid_signature' }, 401);
+    }
+    throw err;
+  }
+
+  if (event.type !== 'checkout.completed') {
+    return c.json({ error: 'unexpected_event' }, 400);
+  }
+
+  if (checkout.consumed) {
+    return c.json({ status: 'already_processed' });
+  }
+
+  const status = event.metadata.status as string | undefined;
+  if (status && status !== 'success') {
+    logger.info({ orderReference }, 'Checkout not successful, skipping');
+    return c.json({ status: 'ignored' });
+  }
+
   const result = await sql.begin(async (tx) => {
     const s = tx as unknown as Sql;
 
-    const checkout = await pendingCheckoutQueries.findPendingCheckoutForUpdate(s, payload.data.orderReference);
-    if (!checkout) {
-      logger.warn({ orderReference: payload.data.orderReference }, 'Pending checkout not found');
+    const checkoutLock = await pendingCheckoutQueries.findPendingCheckoutForUpdate(s, orderReference);
+    if (!checkoutLock) {
       return { status: 404, body: { error: 'checkout_not_found' } };
     }
 
-    if (checkout.consumed) {
+    if (checkoutLock.consumed) {
       return { status: 200, body: { status: 'already_processed' } };
     }
 
-    const pm = await paymentMethodQueries.insertPaymentMethod(s, checkout.tenantId, checkout.customerId, {
-      nombaToken: payload.data.token,
-      cardLast4: payload.data.last4,
-      cardBrand: payload.data.cardBrand,
-      cardExpMonth: payload.data.expMonth,
-      cardExpYear: payload.data.expYear,
+    const pm = await paymentMethodQueries.insertPaymentMethod(s, checkoutLock.tenantId, checkoutLock.customerId, {
+      nombaToken: event.metadata.token as string,
+      cardLast4: event.metadata.last4 as string,
+      cardBrand: event.metadata.cardBrand as string,
+      cardExpMonth: event.metadata.expMonth as number,
+      cardExpYear: event.metadata.expYear as number,
     });
 
-    await pendingCheckoutQueries.markPendingCheckoutConsumed(s, checkout.id);
+    await pendingCheckoutQueries.markPendingCheckoutConsumed(s, checkoutLock.id);
 
-    const subscription = await subscriptionQueries.findSubscriptionById(s, checkout.tenantId, checkout.subscriptionId);
+    const subscription = await subscriptionQueries.findSubscriptionById(s, checkoutLock.tenantId, checkoutLock.subscriptionId);
     if (subscription) {
       if (!subscription.paymentMethodId) {
-        await subscriptionQueries.updateSubscriptionPaymentMethod(s, checkout.tenantId, checkout.subscriptionId, pm.id);
+        await subscriptionQueries.updateSubscriptionPaymentMethod(s, checkoutLock.tenantId, checkoutLock.subscriptionId, pm.id);
       }
 
       if (subscription.status === 'incomplete') {
-        await transitionState(s, checkout.tenantId, checkout.subscriptionId, 'CHECKOUT_COMPLETED', {
+        await transitionState(s, checkoutLock.tenantId, checkoutLock.subscriptionId, 'CHECKOUT_COMPLETED', {
           actorType: 'system',
-          actorId: 'nomba-checkout',
+          actorId: 'webhook',
         });
       }
     }
 
     if (!pm.isPrimary) {
-      const customer = await customerQueries.findCustomerById(s, checkout.tenantId, checkout.customerId);
+      const customer = await customerQueries.findCustomerById(s, checkoutLock.tenantId, checkoutLock.customerId);
       if (customer) {
-        await paymentMethodQueries.promoteToPrimary(s, checkout.customerId, pm.id);
+        await paymentMethodQueries.promoteToPrimary(s, checkoutLock.customerId, pm.id);
       }
     }
 
     logger.info(
-      { orderReference: checkout.orderReference, paymentMethodId: pm.id, subscriptionId: checkout.subscriptionId },
+      { orderReference: checkoutLock.orderReference, paymentMethodId: pm.id, subscriptionId: checkoutLock.subscriptionId },
       'Checkout callback processed',
     );
 

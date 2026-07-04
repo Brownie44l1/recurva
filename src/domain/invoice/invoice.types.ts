@@ -1,5 +1,5 @@
 export type InvoiceStatus = 'draft' | 'open' | 'paid' | 'void' | 'uncollectible';
-export type LineItemType = 'subscription' | 'metered' | 'proration' | 'credit';
+export type LineItemType = 'subscription' | 'metered' | 'proration' | 'credit' | 'tax';
 
 export interface Invoice {
   id: string;
@@ -10,6 +10,9 @@ export interface Invoice {
   status: InvoiceStatus;
   subtotal: number;
   discountAmount: number;
+  taxAmount: number;
+  taxRate: number | null;
+  taxExemptionReason: string | null;
   total: number;
   amountDue: number;
   amountPaid: number;
@@ -20,6 +23,9 @@ export interface Invoice {
   voidedAt: Date | null;
   nombaChargeId: string | null;
   idempotencyKey: string;
+  fxRate: number | null;
+  settlementCurrency: string | null;
+  settlementAmount: number | null;
   createdAt: Date;
   updatedAt: Date;
   lineItems: InvoiceLineItem[];
@@ -42,6 +48,7 @@ export interface BuildInvoiceOptions {
   periodStart?: Date;
   periodEnd?: Date;
   applyCoupon?: boolean;
+  taxExemptionReason?: string | null;
 }
 
 export interface Charge {
@@ -59,6 +66,9 @@ export interface Charge {
   failureMessage: string | null;
   amountRefunded: number;
   refundedAt: Date | null;
+  fxRate: number | null;
+  settlementCurrency: string | null;
+  settlementAmount: number | null;
   createdAt: Date;
   updatedAt: Date;
 }

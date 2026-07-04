@@ -7,6 +7,9 @@ export async function insertInvoice(sql: Sql, tenantId: string, input: {
   currency: string;
   subtotal: number;
   discountAmount: number;
+  taxAmount: number;
+  taxRate: number | null;
+  taxExemptionReason: string | null;
   total: number;
   amountDue: number;
   periodStart: Date;
@@ -17,16 +20,18 @@ export async function insertInvoice(sql: Sql, tenantId: string, input: {
   const [row] = await sql<Invoice[]>`
     INSERT INTO invoices (
       tenant_id, customer_id, subscription_id, currency,
-      subtotal, discount_amount, total, amount_due,
+      subtotal, discount_amount, tax_amount, tax_rate, tax_exemption_reason,
+      total, amount_due,
       period_start, period_end, due_date, idempotency_key
     ) VALUES (
       ${tenantId}, ${input.customerId}, ${input.subscriptionId}, ${input.currency},
-      ${input.subtotal}, ${input.discountAmount}, ${input.total}, ${input.amountDue},
+      ${input.subtotal}, ${input.discountAmount}, ${input.taxAmount}, ${input.taxRate}, ${input.taxExemptionReason},
+      ${input.total}, ${input.amountDue},
       ${input.periodStart}, ${input.periodEnd}, ${input.dueDate}, ${input.idempotencyKey}
     )
     RETURNING *
   `;
-  return { ...row!, lineItems: [] };
+  return { ...row!, lineItems: [], fxRate: null, settlementCurrency: null, settlementAmount: null };
 }
 
 export async function insertLineItem(sql: Sql, invoiceId: string, input: {
@@ -83,6 +88,17 @@ export async function listInvoicesByCustomer(sql: Sql, tenantId: string, custome
   `;
 }
 
+export async function updateInvoiceFx(sql: Sql, invoiceId: string, fxRate: number | null, settlementCurrency: string | null, settlementAmount: number | null): Promise<void> {
+  await sql`
+    UPDATE invoices SET
+      fx_rate = ${fxRate},
+      settlement_currency = ${settlementCurrency},
+      settlement_amount = ${settlementAmount},
+      updated_at = NOW()
+    WHERE id = ${invoiceId}
+  `;
+}
+
 export async function updateInvoiceStatus(sql: Sql, invoiceId: string, status: InvoiceStatus): Promise<Invoice> {
   const updates: string[] = ['status = ${status}'];
   if (status === 'paid') updates.push('paid_at = NOW()');
@@ -107,10 +123,13 @@ export async function insertCharge(sql: Sql, tenantId: string, input: {
   paymentMethodId?: string | null;
   currency: string;
   amount: number;
+  fxRate?: number | null;
+  settlementCurrency?: string | null;
+  settlementAmount?: number | null;
 }): Promise<Charge> {
   const [row] = await sql<Charge[]>`
-    INSERT INTO charges (tenant_id, customer_id, invoice_id, payment_method_id, currency, amount)
-    VALUES (${tenantId}, ${input.customerId}, ${input.invoiceId}, ${input.paymentMethodId ?? null}, ${input.currency}, ${input.amount})
+    INSERT INTO charges (tenant_id, customer_id, invoice_id, payment_method_id, currency, amount, fx_rate, settlement_currency, settlement_amount)
+    VALUES (${tenantId}, ${input.customerId}, ${input.invoiceId}, ${input.paymentMethodId ?? null}, ${input.currency}, ${input.amount}, ${input.fxRate ?? null}, ${input.settlementCurrency ?? null}, ${input.settlementAmount ?? null})
     RETURNING *
   `;
   return row!;

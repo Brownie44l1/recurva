@@ -24,8 +24,8 @@ describe('Billing Lifecycle Integration', () => {
     sql = getDb();
 
     const [tenant] = await sql`
-      INSERT INTO tenants (name, email, nomba_account_id, webhook_secret, mode)
-      VALUES ('Billing Test', 'billing-test@example.com', 'acc_test', 'whsec_test', 'test')
+      INSERT INTO tenants (name, email, nomba_account_id, webhook_secret, mode, tax_exempt)
+      VALUES ('Billing Test', 'billing-test@example.com', 'acc_test', 'whsec_test', 'test', true)
       RETURNING id
     `;
     tenantId = tenant!.id;

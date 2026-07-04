@@ -1,3 +1,5 @@
+export type PreferredProcessor = 'nomba' | 'paystack';
+
 export interface Tenant {
   id: string;
   name: string;
@@ -6,6 +8,9 @@ export interface Tenant {
   webhookSecret: string;
   mode: 'test' | 'live';
   isActive: boolean;
+  preferredProcessor: PreferredProcessor;
+  annualTurnover: number | null;
+  taxExempt: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

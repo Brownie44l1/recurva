@@ -74,6 +74,23 @@ mock.module('../../../src/db/queries/coupon.queries', () => ({
   incrementMonthsApplied: mock(() => ({})),
 }));
 
+mock.module('../../../src/db/queries/tenant.queries', () => ({
+  findTenantById: mock(() => ({
+    id: 'tenant-1',
+    name: 'Test Tenant',
+    email: 'test@example.com',
+    nombaAccountId: 'acc_test',
+    webhookSecret: 'whsec_test',
+    mode: 'test',
+    isActive: true,
+    preferredProcessor: 'nomba',
+    annualTurnover: null,
+    taxExempt: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  })),
+}));
+
 import { buildInvoice, finalizeInvoice } from '../../../src/domain/invoice/invoice.service';
 
 function makeSql() {
