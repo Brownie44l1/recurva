@@ -1,11 +1,21 @@
 import { Hono } from 'hono';
+import { createMiddleware } from 'hono/factory';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { getDb } from '../../db/client';
 import { issuePortalSession, verifyPortalToken } from '../../domain/portal/portal.service';
+import type { PortalClaims } from '../../domain/portal/portal.types';
+import { pauseSubscription, resumeSubscription, changePlan, getSubscription } from '../../domain/subscription/subscription.service';
+import { executeSideEffects } from '../../domain/subscription/side-effect.dispatcher';
 import { config } from '../../config';
 import { logger } from '../../logger';
 import jwt from 'jsonwebtoken';
+
+declare module 'hono' {
+  interface ContextVariableMap {
+    portal: PortalClaims;
+  }
+}
 
 const router = new Hono();
 
@@ -45,7 +55,7 @@ router.get('/auth/verify', async (c) => {
   }
 });
 
-async function portalAuth(c: any, next: any) {
+const portalAuth = createMiddleware(async (c, next) => {
   const authHeader = c.req.header('Authorization');
   if (!authHeader?.startsWith('Bearer ')) return c.json({ error: 'unauthorized' }, 401);
   try {
@@ -55,9 +65,9 @@ async function portalAuth(c: any, next: any) {
   } catch {
     return c.json({ error: 'invalid_token' }, 401);
   }
-}
+});
 
-router.get('/subscriptions', portalAuth, async (c: any) => {
+router.get('/subscriptions', portalAuth, async (c) => {
   const sql = getDb();
   const { tenantId, customerId } = c.var.portal;
   const subs = await sql`
@@ -69,7 +79,7 @@ router.get('/subscriptions', portalAuth, async (c: any) => {
   return c.json({ subscriptions: subs });
 });
 
-router.get('/invoices', portalAuth, async (c: any) => {
+router.get('/invoices', portalAuth, async (c) => {
   const sql = getDb();
   const { tenantId, customerId } = c.var.portal;
   const limit = Math.min(parseInt(c.req.query('limit') ?? '20'), 100);
@@ -81,7 +91,7 @@ router.get('/invoices', portalAuth, async (c: any) => {
   return c.json({ invoices });
 });
 
-router.get('/invoices/:id/download', portalAuth, async (c: any) => {
+router.get('/invoices/:id/download', portalAuth, async (c) => {
   const sql = getDb();
   const { tenantId, customerId } = c.var.portal;
   const invoice = await sql`
@@ -91,7 +101,7 @@ router.get('/invoices/:id/download', portalAuth, async (c: any) => {
   return c.json({ invoice: invoice[0] });
 });
 
-router.post('/subscriptions/:id/cancel', portalAuth, async (c: any) => {
+router.post('/subscriptions/:id/cancel', portalAuth, async (c) => {
   const sql = getDb();
   const { tenantId, customerId } = c.var.portal;
   const [sub] = await sql`
@@ -104,40 +114,34 @@ router.post('/subscriptions/:id/cancel', portalAuth, async (c: any) => {
   return c.json({ status: 'scheduled_for_cancellation' });
 });
 
-router.post('/subscriptions/:id/pause', portalAuth, async (c: any) => {
+router.post('/subscriptions/:id/pause', portalAuth, async (c) => {
   const sql = getDb();
   const { tenantId, customerId } = c.var.portal;
-  const [sub] = await sql`
-    SELECT * FROM subscriptions WHERE id = ${c.req.param('id')} AND tenant_id = ${tenantId} AND customer_id = ${customerId} AND status = 'active' LIMIT 1
-  `;
-  if (!sub) return c.json({ error: 'not_found_or_not_active' }, 404);
-  await sql`UPDATE subscriptions SET status = 'paused', paused_at = NOW(), updated_at = NOW() WHERE id = ${sub.id}`;
-  return c.json({ status: 'paused' });
+  const sub = await getSubscription(sql, tenantId, c.req.param('id'));
+  if (sub.customerId !== customerId) return c.json({ error: 'not_found' }, 404);
+  const { subscription, sideEffects } = await pauseSubscription(sql, tenantId, sub.id);
+  await executeSideEffects(sql, tenantId, subscription, sideEffects, { actorType: 'portal', actorId: customerId });
+  return c.json({ status: 'paused', subscription });
 });
 
-router.post('/subscriptions/:id/resume', portalAuth, async (c: any) => {
+router.post('/subscriptions/:id/resume', portalAuth, async (c) => {
   const sql = getDb();
   const { tenantId, customerId } = c.var.portal;
-  const [sub] = await sql`
-    SELECT * FROM subscriptions WHERE id = ${c.req.param('id')} AND tenant_id = ${tenantId} AND customer_id = ${customerId} AND status = 'paused' LIMIT 1
-  `;
-  if (!sub) return c.json({ error: 'not_found_or_not_paused' }, 404);
-  await sql`UPDATE subscriptions SET status = 'active', updated_at = NOW() WHERE id = ${sub.id}`;
-  return c.json({ status: 'resumed' });
+  const sub = await getSubscription(sql, tenantId, c.req.param('id'));
+  if (sub.customerId !== customerId) return c.json({ error: 'not_found' }, 404);
+  const { subscription, sideEffects } = await resumeSubscription(sql, tenantId, sub.id);
+  await executeSideEffects(sql, tenantId, subscription, sideEffects, { actorType: 'portal', actorId: customerId });
+  return c.json({ status: 'resumed', subscription });
 });
 
-router.post('/subscriptions/:id/change-plan', zValidator('json', z.object({ newPlanId: z.string().uuid() })), portalAuth, async (c: any) => {
+router.post('/subscriptions/:id/change-plan', zValidator('json', z.object({ newPlanId: z.string().uuid() })), portalAuth, async (c) => {
   const sql = getDb();
   const { tenantId, customerId } = c.var.portal;
   const { newPlanId } = c.req.valid('json');
-  const [sub] = await sql`
-    SELECT * FROM subscriptions WHERE id = ${c.req.param('id')} AND tenant_id = ${tenantId} AND customer_id = ${customerId} LIMIT 1
-  `;
-  if (!sub) return c.json({ error: 'not_found' }, 404);
-  const [plan] = await sql`SELECT * FROM plans WHERE id = ${newPlanId} AND tenant_id = ${tenantId} LIMIT 1`;
-  if (!plan) return c.json({ error: 'plan_not_found' }, 404);
-  await sql`UPDATE subscriptions SET plan_id = ${newPlanId}, updated_at = NOW() WHERE id = ${sub.id}`;
-  return c.json({ status: 'plan_changed' });
+  const sub = await getSubscription(sql, tenantId, c.req.param('id'));
+  if (sub.customerId !== customerId) return c.json({ error: 'not_found' }, 404);
+  const updated = await changePlan(sql, tenantId, sub.id, { newPlanId, immediate: true });
+  return c.json({ status: 'plan_changed', subscription: updated });
 });
 
 export { router as portalRoutes };

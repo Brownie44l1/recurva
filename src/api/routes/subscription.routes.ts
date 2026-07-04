@@ -1,9 +1,11 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
+import { z } from 'zod';
 import { getDb } from '../../db/client';
 import { tenantAuthMiddleware } from '../middleware/tenant-auth';
 import { createSubscription, getSubscription, cancelSubscription, pauseSubscription, resumeSubscription, changePlan, listSubscriptionsByTenant, listSubscriptionsByCustomer } from '../../domain/subscription/subscription.service';
 import { executeSideEffects } from '../../domain/subscription/side-effect.dispatcher';
+import * as queries from '../../db/queries/subscription.queries';
 import { createSubscriptionSchema, cancelSubscriptionSchema, changePlanSchema } from '../validators/subscription.validator';
 
 const router = new Hono();
@@ -72,6 +74,18 @@ router.post('/:id/change-plan', zValidator('json', changePlanSchema), async (c) 
   const tenant = c.var.tenant;
   const input = c.req.valid('json');
   const sub = await changePlan(sql, tenant.id, c.req.param('id'), input);
+  return c.json({ subscription: sub });
+});
+
+const updatePaymentMethodSchema = z.object({
+  paymentMethodId: z.string().uuid(),
+});
+
+router.post('/:id/payment-method', zValidator('json', updatePaymentMethodSchema), async (c) => {
+  const sql = getDb();
+  const tenant = c.var.tenant;
+  const { paymentMethodId } = c.req.valid('json');
+  const sub = await queries.updateSubscriptionPaymentMethod(sql, tenant.id, c.req.param('id'), paymentMethodId);
   return c.json({ subscription: sub });
 });
 

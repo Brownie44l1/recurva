@@ -1,5 +1,6 @@
 import { createMiddleware } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
+import { getDb } from '../../db/client';
 
 interface RateLimitOptions {
   windowMs: number;
@@ -10,47 +11,45 @@ interface RateLimitOptions {
 export function rateLimiter(opts: RateLimitOptions) {
   const { windowMs, maxRead, maxWrite } = opts;
 
-  const hits = new Map<string, number[]>();
-
-  const cleanup = setInterval(() => {
-    const now = Date.now();
-    for (const [key, timestamps] of hits) {
-      const valid = timestamps.filter(t => now - t < windowMs);
-      if (valid.length === 0) {
-        hits.delete(key);
-      } else {
-        hits.set(key, valid);
-      }
-    }
-  }, 60_000);
-
-  if (cleanup.unref) cleanup.unref();
-
   return createMiddleware(async (c, next) => {
     const key = c.req.header('x-forwarded-for')?.split(',')[0]?.trim()
       || c.req.header('x-real-ip')
       || 'unknown';
+
     const now = Date.now();
+    const windowStart = Math.floor(now / windowMs) * windowMs;
 
     const isRead = c.req.method === 'GET' || c.req.method === 'HEAD';
     const max = isRead ? maxRead : maxWrite;
 
-    let timestamps = hits.get(key) ?? [];
-    timestamps = timestamps.filter(t => now - t < windowMs);
+    const sql = getDb();
 
-    if (timestamps.length >= max) {
-      const retryAfter = Math.ceil((timestamps[0]! + windowMs - now) / 1000);
-      c.header('Retry-After', String(retryAfter));
+    await sql.begin(async (tx) => {
+      await tx`
+        DELETE FROM rate_limits WHERE key = ${key} AND window_start < ${windowStart}
+      `;
+
+      const [row] = await tx<{ count: number }[]>`
+        INSERT INTO rate_limits (key, window_start, count)
+        VALUES (${key}, ${windowStart}, 1)
+        ON CONFLICT (key, window_start)
+        DO UPDATE SET count = rate_limits.count + 1
+        RETURNING count
+      `;
+
+      const currentCount = row!.count;
+
+      if (currentCount > max) {
+        const retryAfter = Math.ceil((windowStart + windowMs - now) / 1000);
+        c.header('Retry-After', String(retryAfter));
+        c.header('X-RateLimit-Limit', String(max));
+        c.header('X-RateLimit-Remaining', '0');
+        throw new HTTPException(429, { message: 'Too Many Requests' });
+      }
+
       c.header('X-RateLimit-Limit', String(max));
-      c.header('X-RateLimit-Remaining', '0');
-      throw new HTTPException(429, { message: 'Too Many Requests' });
-    }
-
-    timestamps.push(now);
-    hits.set(key, timestamps);
-
-    c.header('X-RateLimit-Limit', String(max));
-    c.header('X-RateLimit-Remaining', String(max - timestamps.length));
+      c.header('X-RateLimit-Remaining', String(max - currentCount));
+    });
 
     await next();
   });

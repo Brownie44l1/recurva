@@ -13,6 +13,7 @@ import { subscriptionRoutes } from './routes/subscription.routes';
 import { usageRoutes } from './routes/usage.routes';
 import { invoiceRoutes } from './routes/invoice.routes';
 import { webhookRoutes } from './routes/webhook.routes';
+import { dunningPolicyRoutes } from './routes/dunning-policy.routes';
 import { checkoutRoutes } from './routes/checkout.routes';
 import { portalRoutes } from '../portal/routes';
 import { dashboardRoutes } from '../dashboard/routes';
@@ -20,6 +21,8 @@ import { reportRoutes } from '../reports/routes';
 import { handleNombaCheckoutCallback } from '../webhooks/inbound/nomba';
 import { handleNombaWebhook } from '../webhooks/inbound/nomba-webhook';
 import { idempotencyMiddleware } from './middleware/idempotency';
+import { registerOpenApiRoutes } from './openapi';
+import { emailRoutes } from './routes/email.routes';
 
 export function createApp() {
   const app = new Hono();
@@ -87,6 +90,12 @@ export function createApp() {
   // Usage routes are mounted under subscriptions
   v1.route('/subscriptions', usageRoutes);
 
+  // Dunning policy routes
+  v1.route('/dunning-policies', dunningPolicyRoutes);
+
+  // Email routes
+  v1.route('/email', emailRoutes);
+
   // Portal and dashboard routes
   v1.route('/portal', portalRoutes);
   v1.route('/dashboard', dashboardRoutes);
@@ -95,6 +104,8 @@ export function createApp() {
   v1.route('/reports', reportRoutes);
 
   app.route('/v1', v1);
+
+  registerOpenApiRoutes(app);
 
   return app;
 }
