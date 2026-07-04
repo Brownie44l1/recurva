@@ -17,7 +17,6 @@ let mockCoupon: Record<string, unknown> | null = null;
 let mockRedemption: Record<string, unknown> | null = null;
 let mockExistingInvoice: Record<string, unknown> | null = null;
 
-// @ts-expect-error - mock.module must be called before module imports
 mock.module('../../../src/db/queries/invoice.queries', () => ({
   findInvoiceByIdempotencyKey: mock(() => mockExistingInvoice),
   insertInvoice: mock((_sql: unknown, tenantId: string, input: Record<string, unknown>) => ({
@@ -61,17 +60,14 @@ mock.module('../../../src/db/queries/invoice.queries', () => ({
   updateInvoiceStatus: mock(() => ({})),
 }));
 
-// @ts-expect-error - mock.module
 mock.module('../../../src/db/queries/plan.queries', () => ({
   findPlanById: mock(() => ({ ...plan })),
 }));
 
-// @ts-expect-error - mock.module
 mock.module('../../../src/db/queries/usage.queries', () => ({
   aggregateUsage: mock(() => ({ totalUnits: 10 })),
 }));
 
-// @ts-expect-error - mock.module
 mock.module('../../../src/db/queries/coupon.queries', () => ({
   findCouponById: mock(() => mockCoupon),
   findRedemptionForUpdate: mock(() => mockRedemption),
@@ -274,8 +270,8 @@ describe('Invoice Service - buildInvoice', () => {
     const invoice = await buildInvoice(makeSql(), 'tenant-1', makeSubscription(), makeOptions());
 
     expect(invoice.lineItems).toHaveLength(1);
-    expect(invoice.lineItems[0].type).toBe('subscription');
-    expect(invoice.lineItems[0].amount).toBe(5000);
+    expect(invoice.lineItems[0]!.type).toBe('subscription');
+    expect(invoice.lineItems[0]!.amount).toBe(5000);
   });
 });
 

@@ -8,7 +8,6 @@ function track(name: string, ...args: unknown[]) {
   calls[name].push(args);
 }
 
-// @ts-expect-error - mock.module must be called before module imports
 mock.module('../../../src/domain/billing/billing.service', () => ({
   billSubscription: mock((...args: unknown[]) => {
     track('billSubscription', ...args);
@@ -16,7 +15,6 @@ mock.module('../../../src/domain/billing/billing.service', () => ({
   }),
 }));
 
-// @ts-expect-error - mock.module
 mock.module('../../../src/domain/dunning/dunning.service', () => ({
   initiateDunning: mock((...args: unknown[]) => {
     track('initiateDunning', ...args);
@@ -24,7 +22,6 @@ mock.module('../../../src/domain/dunning/dunning.service', () => ({
   }),
 }));
 
-// @ts-expect-error - mock.module
 mock.module('../../../src/domain/webhook/webhook.service', () => ({
   enqueueEvent: mock((...args: unknown[]) => {
     track('enqueueEvent', ...args);
@@ -32,7 +29,6 @@ mock.module('../../../src/domain/webhook/webhook.service', () => ({
   }),
 }));
 
-// @ts-expect-error - mock.module
 mock.module('../../../src/db/queries/dunning.queries', () => ({
   cancelScheduledDunning: mock((...args: unknown[]) => {
     track('cancelScheduledDunning', ...args);
@@ -53,7 +49,7 @@ function makeSub(overrides: Record<string, unknown> = {}) {
     customerId: 'cust-1',
     planId: 'plan-1',
     currency: 'NGN',
-    status: 'active',
+    status: 'active' as const,
     paymentMethodId: 'pm-1',
     couponId: null,
     trialStart: null,
@@ -88,19 +84,19 @@ describe('Side Effect Dispatcher', () => {
       { invoiceId: 'inv-1' },
     );
     expect(calls['initiateDunning']).toHaveLength(1);
-    expect(calls['initiateDunning'][0]).toContain('inv-1');
+    expect(calls['initiateDunning']![0]!).toContain('inv-1');
   });
 
   it('dispatches ACTIVATE to enqueueEvent with subscription.activated', async () => {
     await executeSideEffects(makeSql(), 'tenant-1', makeSub(), ['ACTIVATE'], { actorType: 'system', actorId: 'test' });
     expect(calls['enqueueEvent']).toHaveLength(1);
-    expect(calls['enqueueEvent'][0][2]).toBe('subscription.activated');
+    expect(calls['enqueueEvent']![0]![2]).toBe('subscription.activated');
   });
 
   it('dispatches NOTIFY_TENANT to enqueueEvent with subscription.notification', async () => {
     await executeSideEffects(makeSql(), 'tenant-1', makeSub({ status: 'unpaid' }), ['NOTIFY_TENANT'], { actorType: 'system', actorId: 'test' });
     expect(calls['enqueueEvent']).toHaveLength(1);
-    expect(calls['enqueueEvent'][0][2]).toBe('subscription.notification');
+    expect(calls['enqueueEvent']![0]![2]).toBe('subscription.notification');
   });
 
   it('dispatches CLEAR_DUNNING to cancelScheduledDunning', async () => {
@@ -114,13 +110,13 @@ describe('Side Effect Dispatcher', () => {
     });
     expect(calls['cancelScheduledDunning']).toHaveLength(1);
     expect(calls['enqueueEvent']).toHaveLength(1);
-    expect(calls['enqueueEvent'][0][2]).toBe('subscription.cancelled');
+    expect(calls['enqueueEvent']![0]![2]).toBe('subscription.cancelled');
   });
 
   it('dispatches CREATE_NEW_CYCLE to enqueueEvent with subscription.reactivated', async () => {
     await executeSideEffects(makeSql(), 'tenant-1', makeSub(), ['CREATE_NEW_CYCLE'], { actorType: 'system', actorId: 'test' });
     expect(calls['enqueueEvent']).toHaveLength(1);
-    expect(calls['enqueueEvent'][0][2]).toBe('subscription.reactivated');
+    expect(calls['enqueueEvent']![0]![2]).toBe('subscription.reactivated');
   });
 
   it('does not throw for SCHEDULE_CANCELLATION (declared but no handler)', async () => {

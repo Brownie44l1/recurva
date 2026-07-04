@@ -4,7 +4,9 @@ import { createNombaClient } from '../../../src/nomba/client';
 const originalFetch = globalThis.fetch;
 
 function setupFetch(handler: (url: string, opts?: Record<string, unknown>) => Promise<Response>) {
-  globalThis.fetch = mock(handler);
+  const m = mock(handler);
+  (m as any).preconnect = () => {};
+  globalThis.fetch = m as unknown as typeof fetch;
 }
 
 describe('Nomba Client - Per-Tenant Token Cache', () => {

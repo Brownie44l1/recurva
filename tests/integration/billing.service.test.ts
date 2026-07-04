@@ -1,13 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll, mock } from 'bun:test';
 
-// @ts-expect-error - mock.module must be called before module imports
 mock.module('../../src/infrastructure/email/email.client', () => ({
   createEmailClient: mock(() => ({
     send: mock(async () => ({ id: 'mock-email-id', to: ['test@example.com'], from: 'test@example.com', subject: 'Test' })),
   })),
 }));
 
-// @ts-expect-error - mock.module
 mock.module('../../src/infrastructure/email/email.service', () => ({
   createEmailService: mock(() => ({
     send: mock(async () => ({ id: 'mock-email-id', to: ['test@example.com'], from: 'test@example.com', subject: 'Test' })),
