@@ -5,7 +5,7 @@ import { getDb } from '../../db/client';
 import { tenantAuthMiddleware } from '../middleware/tenant-auth';
 import { listInvoices, getInvoice, voidInvoice } from '../../domain/invoice/invoice.service';
 import { retryCharge } from '../../domain/billing/billing.service';
-import { refund } from '../../domain/nomba/nomba.service';
+import { getPaymentProcessor } from '../../domain/payment/payment.factory';
 import * as invoiceQueries from '../../db/queries/invoice.queries';
 import { NotFoundError, ValidationError } from '../../errors';
 
@@ -72,7 +72,7 @@ router.post('/:id/refund', zValidator('json', refundSchema), async (c) => {
   }
 
   const reference = `refund_${invoiceId}_${Date.now()}`;
-  const result = await refund(tenant, {
+  const result = await getPaymentProcessor(tenant).refund({
     transactionId: charge.nombaReference,
     amount,
     reason: reason ?? 'Customer requested refund',

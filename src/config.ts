@@ -26,10 +26,18 @@ const envSchema = z.object({
   NOMBA_LIVE_PRIVATE_KEY: z.string().default(''),
   NOMBA_WEBHOOK_SECRET: z.string().default(process.env.NOMBA_INBOUND_WEBHOOK_SECRET || ''),
   NOMBA_CALLBACK_URL: z.string().default(''),
+  NOMBA_REQUEST_TIMEOUT_MS: z.coerce.number().default(15000),
   ENCRYPTION_KEY: z.string().default(''),
   BILLING_CRON: z.string().default('0 6 * * *'),
   DUNNING_CRON: z.string().default('0 * * * *'),
   WEBHOOK_RETRY_CRON: z.string().default('*/15 * * * *'),
+
+  // Sentry
+  SENTRY_DSN: z.string().optional(),
+  SENTRY_ENVIRONMENT: z.string().optional().default('development'),
+
+  // Healthchecks.io
+  HEALTHCHECK_DUNNING_URL: z.string().optional(),
 
   // Email
   RESEND_API_KEY: z.string().default(''),

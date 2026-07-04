@@ -2,14 +2,23 @@ import type { Tenant } from '../domain/tenant/tenant.types';
 import type { ChargeInput, ChargeResult, CheckoutInput, CheckoutResult, RefundInput, RefundResult } from '../domain/nomba/nomba.types';
 import { config } from '../config';
 import { logger } from '../logger';
+import { NombaTimeoutError } from '../errors';
+import { reportBillingError } from '../observability/report-error';
 
-let cachedToken: string | null = null;
-let tokenExpiresAt = 0;
+const TIMEOUT_MS = config.NOMBA_REQUEST_TIMEOUT_MS;
 
-async function getAccessToken(baseUrl: string, accountId: string, clientId: string, clientSecret: string): Promise<string> {
+const tokenCache = new Map<string, { token: string; expiresAt: number }>();
+
+function cacheKey(tenantId: string, baseUrl: string, clientId: string): string {
+  return `${tenantId}:${baseUrl}:${clientId}`;
+}
+
+async function getAccessToken(tenantId: string, baseUrl: string, accountId: string, clientId: string, clientSecret: string): Promise<string> {
   const now = Date.now();
-  if (cachedToken && tokenExpiresAt > now + 60 * 1000) {
-    return cachedToken;
+  const key = cacheKey(tenantId, baseUrl, clientId);
+  const cached = tokenCache.get(key);
+  if (cached && cached.expiresAt > now + 60 * 1000) {
+    return cached.token;
   }
 
   if (!clientId || !clientSecret) {
@@ -17,22 +26,31 @@ async function getAccessToken(baseUrl: string, accountId: string, clientId: stri
     return 'mock_token_for_testing';
   }
 
-  const response = await fetch(`${baseUrl}/v1/auth/token/issue`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'accountId': accountId,
-    },
-    body: JSON.stringify({
-      grant_type: 'client_credentials',
-      client_id: clientId,
-      client_secret: clientSecret,
-    }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}/v1/auth/token/issue`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'accountId': accountId,
+      },
+      body: JSON.stringify({
+        grant_type: 'client_credentials',
+        client_id: clientId,
+        client_secret: clientSecret,
+      }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'TimeoutError') {
+      throw new NombaTimeoutError(TIMEOUT_MS, 'getAccessToken');
+    }
+    throw err;
+  }
 
   if (!response.ok) {
     const errText = await response.text();
-    logger.error({ status: response.status, errText }, 'Failed to issue Nomba access token');
+    reportBillingError({ tenantId: accountId, status: response.status, errText }, 'Failed to issue Nomba access token');
     throw new Error(`Failed to issue Nomba access token: ${response.status} ${errText}`);
   }
 
@@ -41,10 +59,14 @@ async function getAccessToken(baseUrl: string, accountId: string, clientId: stri
   if (!tokenData?.access_token) {
     throw new Error(`Nomba token response missing access_token: ${JSON.stringify(body)}`);
   }
-  cachedToken = tokenData.access_token;
-  const expiresIn = tokenData.expires_at ? (new Date(tokenData.expires_at).getTime() - Date.now()) : 3600_000;
-  tokenExpiresAt = Date.now() + Math.max(expiresIn, 60_000);
-  return cachedToken;
+  tokenCache.set(key, {
+    token: tokenData.access_token,
+    expiresAt: Date.now() + Math.max(
+      tokenData.expires_at ? (new Date(tokenData.expires_at).getTime() - Date.now()) : 3600_000,
+      60_000,
+    ),
+  });
+  return tokenData.access_token;
 }
 
 export function createNombaClient(tenant: { id: string; nombaAccountId: string; mode?: 'test' | 'live' }) {
@@ -55,21 +77,32 @@ export function createNombaClient(tenant: { id: string; nombaAccountId: string; 
   const parentAccountId = config.NOMBA_PARENT_ACCOUNT_ID;
 
   async function request<T>(path: string, body: Record<string, unknown>): Promise<{ data: T } & Record<string, unknown>> {
-    const token = await getAccessToken(baseUrl, parentAccountId, clientId, clientSecret);
+    const token = await getAccessToken(tenant.id, baseUrl, parentAccountId, clientId, clientSecret);
     const url = `${baseUrl}${path}`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-        'accountId': parentAccountId,
-      },
-      body: JSON.stringify(body),
-    });
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'accountId': parentAccountId,
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'TimeoutError') {
+        logger.error({ tenantId: tenant.id, path, timeoutMs: TIMEOUT_MS }, 'Nomba API request timed out');
+        throw new NombaTimeoutError(TIMEOUT_MS, path);
+      }
+      throw err;
+    }
 
     if (!response.ok) {
       const errorBody = await response.text();
-      logger.error({ tenantId: tenant.id, status: response.status, path, errorBody }, 'Nomba API error');
+      reportBillingError({ tenantId: tenant.id, status: response.status, path, errorBody }, 'Nomba API error');
       throw new Error(`Nomba API error: ${response.status} ${errorBody}`);
     }
 

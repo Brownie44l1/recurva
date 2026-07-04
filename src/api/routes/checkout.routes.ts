@@ -4,7 +4,7 @@ import { zValidator } from '@hono/zod-validator';
 import { getDb } from '../../db/client';
 import { tenantAuthMiddleware } from '../middleware/tenant-auth';
 import { createSubscription } from '../../domain/subscription/subscription.service';
-import { createCheckoutSession } from '../../domain/nomba/nomba.service';
+import { getPaymentProcessor } from '../../domain/payment/payment.factory';
 import * as planQueries from '../../db/queries/plan.queries';
 import * as customerQueries from '../../db/queries/customer.queries';
 import * as pendingCheckoutQueries from '../../db/queries/pending-checkout.queries';
@@ -55,7 +55,7 @@ router.post('/', zValidator('json', createCheckoutSchema), async (c) => {
     currency: input.currency,
   });
 
-  const session = await createCheckoutSession(tenant, {
+  const session = await getPaymentProcessor(tenant).createCheckout({
     orderReference,
     customerId: input.customerId,
     amount: price.amount,

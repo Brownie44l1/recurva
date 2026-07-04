@@ -7,6 +7,7 @@ import { transitionState } from '../../domain/subscription/subscription.service'
 import { executeSideEffects } from '../../domain/subscription/side-effect.dispatcher';
 import { config } from '../../config';
 import { logger } from '../../logger';
+import { reportBillingError } from '../../observability/report-error';
 import * as crypto from 'crypto';
 
 interface NombaWebhookPayload {
@@ -54,7 +55,7 @@ export async function handleNombaWebhook(c: Context): Promise<Response> {
 
   const sql = getDb();
 
-  const routing: Record<string, (payload: NombaWebhookPayload, sql: Sql) => Promise<void>> = {
+  const routing: Record<string, (payload: NombaWebhookPayload, sql: Sql) => Promise<string | undefined>> = {
     'charge.success': handleChargeSuccess,
     'charge.failure': handleChargeFailure,
     'refund.completed': handleRefundCompleted,
@@ -63,19 +64,13 @@ export async function handleNombaWebhook(c: Context): Promise<Response> {
   const handler = routing[payload.event];
 
   if (handler) {
-    const inserted = await sql`
-      INSERT INTO webhook_events (nomba_event_id, event_type, payload)
-      VALUES (${payload.eventId}, ${payload.event}, ${sql.json(payload.data as any)})
-      ON CONFLICT (nomba_event_id) DO NOTHING
-      RETURNING id
-    `;
-    if (inserted.length === 0) {
-      return c.json({ status: 'already_processed' });
-    }
     try {
-      await handler(payload, sql);
+      const result = await handler(payload, sql);
+      if (result === 'already_processed') {
+        return c.json({ status: 'already_processed' });
+      }
     } catch (err) {
-      logger.error({ event: payload.event, eventId: payload.eventId, err }, 'Nomba webhook handler failed');
+      reportBillingError({ event: payload.event, eventId: payload.eventId }, 'Nomba webhook handler failed', err);
     }
   } else {
     logger.warn({ event: payload.event, eventId: payload.eventId }, 'Unknown Nomba webhook event');
@@ -95,7 +90,7 @@ export async function handleNombaWebhook(c: Context): Promise<Response> {
   return c.json({ status: 'processed' });
 }
 
-async function handleChargeSuccess(payload: NombaWebhookPayload, sql: Sql): Promise<void> {
+async function handleChargeSuccess(payload: NombaWebhookPayload, sql: Sql): Promise<string | undefined> {
   const data = payload.data as {
     transactionId?: string;
     invoiceId?: string;
@@ -108,8 +103,21 @@ async function handleChargeSuccess(payload: NombaWebhookPayload, sql: Sql): Prom
     return;
   }
 
+  let alreadyProcessed = false;
+
   await sql.begin(async (tx) => {
     const s = tx as unknown as Sql;
+
+    const inserted = await s`
+      INSERT INTO webhook_events (nomba_event_id, event_type, payload)
+      VALUES (${payload.eventId}, ${payload.event}, ${s.json(payload.data as any)})
+      ON CONFLICT (nomba_event_id) DO NOTHING
+      RETURNING id
+    `;
+    if (inserted.length === 0) {
+      alreadyProcessed = true;
+      return;
+    }
 
     const charge = await invoiceQueries.findChargeByNombaReferenceWithLock(s, `${data.transactionId}`);
     if (charge && charge.status === 'succeeded') {
@@ -146,9 +154,11 @@ async function handleChargeSuccess(payload: NombaWebhookPayload, sql: Sql): Prom
 
     logger.info({ invoiceId: data.invoiceId, eventId: payload.eventId }, 'Charge success handled');
   });
+
+  return alreadyProcessed ? 'already_processed' : undefined;
 }
 
-async function handleChargeFailure(payload: NombaWebhookPayload, sql: Sql): Promise<void> {
+async function handleChargeFailure(payload: NombaWebhookPayload, sql: Sql): Promise<string | undefined> {
   const data = payload.data as {
     transactionId?: string;
     invoiceId?: string;
@@ -163,8 +173,21 @@ async function handleChargeFailure(payload: NombaWebhookPayload, sql: Sql): Prom
     return;
   }
 
+  let alreadyProcessed = false;
+
   await sql.begin(async (tx) => {
     const s = tx as unknown as Sql;
+
+    const inserted = await s`
+      INSERT INTO webhook_events (nomba_event_id, event_type, payload)
+      VALUES (${payload.eventId}, ${payload.event}, ${s.json(payload.data as any)})
+      ON CONFLICT (nomba_event_id) DO NOTHING
+      RETURNING id
+    `;
+    if (inserted.length === 0) {
+      alreadyProcessed = true;
+      return;
+    }
 
     const charge = await invoiceQueries.findChargeByNombaReferenceWithLock(s, `${data.transactionId}`);
     if (charge && charge.status === 'failed') {
@@ -193,19 +216,40 @@ async function handleChargeFailure(payload: NombaWebhookPayload, sql: Sql): Prom
 
     logger.info({ invoiceId: data.invoiceId, failureCode: data.failureCode, eventId: payload.eventId }, 'Charge failure recorded');
   });
+
+  return alreadyProcessed ? 'already_processed' : undefined;
 }
 
-async function handleRefundCompleted(payload: NombaWebhookPayload, sql: Sql): Promise<void> {
+async function handleRefundCompleted(payload: NombaWebhookPayload, sql: Sql): Promise<string | undefined> {
   const data = payload.data as {
     transactionId?: string;
     chargeId?: string;
     amount?: number;
   };
 
-  if (data.chargeId) {
-    await sql`
-      UPDATE charges SET status = 'refunded', amount_refunded = COALESCE(${data.amount ?? 0}, 0), refunded_at = NOW() WHERE id = ${data.chargeId}
+  let alreadyProcessed = false;
+
+  await sql.begin(async (tx) => {
+    const s = tx as unknown as Sql;
+
+    const inserted = await s`
+      INSERT INTO webhook_events (nomba_event_id, event_type, payload)
+      VALUES (${payload.eventId}, ${payload.event}, ${s.json(payload.data as any)})
+      ON CONFLICT (nomba_event_id) DO NOTHING
+      RETURNING id
     `;
-    logger.info({ chargeId: data.chargeId, eventId: payload.eventId }, 'Refund completed handled');
-  }
+    if (inserted.length === 0) {
+      alreadyProcessed = true;
+      return;
+    }
+
+    if (data.chargeId) {
+      await s`
+        UPDATE charges SET status = 'refunded', amount_refunded = COALESCE(${data.amount ?? 0}, 0), refunded_at = NOW() WHERE id = ${data.chargeId}
+      `;
+      logger.info({ chargeId: data.chargeId, eventId: payload.eventId }, 'Refund completed handled');
+    }
+  });
+
+  return alreadyProcessed ? 'already_processed' : undefined;
 }

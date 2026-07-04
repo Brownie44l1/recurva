@@ -31,6 +31,11 @@ export async function initiateDunning(
   subscriptionId: string,
   invoiceId: string,
 ): Promise<DunningAttempt[]> {
+  const existing = await queries.findDunningAttemptsByInvoice(sql, subscriptionId, invoiceId);
+  if (existing.length > 0) {
+    return existing;
+  }
+
   let policy = await queries.findDefaultDunningPolicy(sql, tenantId);
   const schedule = policy?.retrySchedule as unknown as RetryScheduleEntry[] ?? DEFAULT_RETRY_SCHEDULE;
   const now = new Date();

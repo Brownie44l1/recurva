@@ -3,6 +3,9 @@ import { logger } from './logger';
 import { createApp } from './api/app';
 import { getDb, closeDb } from './db/client';
 import { startSchedulers } from './scheduler/runner';
+import { initSentry } from './observability/sentry';
+
+initSentry();
 
 const app = createApp();
 

@@ -5,14 +5,76 @@ import * as invoiceQueries from '../../db/queries/invoice.queries';
 import * as subscriptionQueries from '../../db/queries/subscription.queries';
 import * as paymentMethodQueries from '../../db/queries/payment-method.queries';
 import * as tenantQueries from '../../db/queries/tenant.queries';
+import * as customerQueries from '../../db/queries/customer.queries';
 import { buildInvoice, finalizeInvoice } from '../invoice/invoice.service';
-import { chargeCard } from '../nomba/nomba.service';
+import { getPaymentProcessor } from '../payment/payment.factory';
 import { transitionState } from '../subscription/subscription.service';
 import { executeSideEffects } from '../subscription/side-effect.dispatcher';
 import { config } from '../../config';
+import { createEmailClient } from '../../infrastructure/email/email.client';
+import { createEmailService } from '../../infrastructure/email/email.service';
+import type { EmailService } from '../../infrastructure/email/email.service';
+import { logger } from '../../logger';
 
 function asSql(tx: TransactionSql): Sql {
   return tx as unknown as Sql;
+}
+
+let _emailService: EmailService | null = null;
+
+function getEmailService(): EmailService | null {
+  if (!_emailService) {
+    try {
+      const client = createEmailClient(config.RESEND_API_KEY);
+      _emailService = createEmailService({ client });
+    } catch {
+      logger.warn('Email service not available - email sending disabled');
+      return null;
+    }
+  }
+  return _emailService;
+}
+
+async function sendReceiptEmail(sql: Sql, tenantId: string, customerId: string, amount: number, currency: string, description: string): Promise<void> {
+  const emailService = getEmailService();
+  if (!emailService) return;
+
+  try {
+    const customer = await customerQueries.findCustomerById(sql, tenantId, customerId);
+    if (!customer?.email) return;
+
+    await emailService.sendPaymentReceipt(customer.email, {
+      name: customer.name ?? 'Valued Customer',
+      amount: (amount / 100).toFixed(2),
+      currency,
+      date: new Date().toLocaleDateString('en-GB'),
+      receiptUrl: '',
+      description,
+    });
+  } catch (err) {
+    logger.error({ customerId, tenantId, err }, 'Failed to send payment receipt email');
+  }
+}
+
+async function sendFailedEmail(sql: Sql, tenantId: string, customerId: string, amount: number, currency: string, reason: string): Promise<void> {
+  const emailService = getEmailService();
+  if (!emailService) return;
+
+  try {
+    const customer = await customerQueries.findCustomerById(sql, tenantId, customerId);
+    if (!customer?.email) return;
+
+    await emailService.sendPaymentFailedEmail(customer.email, {
+      name: customer.name ?? 'Valued Customer',
+      amount: (amount / 100).toFixed(2),
+      currency,
+      date: new Date().toLocaleDateString('en-GB'),
+      retryUrl: '',
+      reason,
+    });
+  } catch (err) {
+    logger.error({ customerId, tenantId, err }, 'Failed to send payment failed email');
+  }
 }
 
 async function decrementCreditForInvoice(
@@ -33,7 +95,12 @@ export async function billSubscription(
   subscriptionId: string,
   context: BillingContext,
 ): Promise<BillingResult> {
-  return withTransaction(sql, async (tx) => {
+  let emailInfo: { customerId: string; amount: number; currency: string; invoiceId: string } | null = null;
+  let chargeSucceeded = false;
+  let chargeFailed = false;
+  let failureReason: string | undefined;
+
+  const result = await withTransaction(sql, async (tx) => {
     const s = asSql(tx);
     const subscription = await subscriptionQueries.findSubscriptionForUpdate(s, tenantId, subscriptionId);
     if (!subscription) {
@@ -64,6 +131,9 @@ export async function billSubscription(
       : null;
 
     if (!pm) {
+      emailInfo = { customerId: subscription.customerId, amount: 0, currency: subscription.currency, invoiceId: invoice.id };
+      chargeFailed = true;
+      failureReason = 'No payment method';
       const { subscription: sub, sideEffects } = await transitionState(s, tenantId, subscriptionId, 'PAYMENT_FAILED', context);
       await executeSideEffects(s, tenantId, sub, sideEffects, context, { invoiceId: invoice.id });
       return { success: false, invoiceId: invoice.id, chargeId: null, status: 'dunning' };
@@ -88,7 +158,7 @@ export async function billSubscription(
         return { success: false, invoiceId: invoice.id, chargeId: charge.id, status: 'failed', failureReason: 'Tenant not found' };
       }
 
-      const result = await chargeCard(tenant, {
+      const result = await getPaymentProcessor(tenant).charge({
         token: pm.nombaToken,
         amount: finalized.amountDue,
         currency: subscription.currency,
@@ -109,6 +179,9 @@ export async function billSubscription(
 
       await subscriptionQueries.updateSubscriptionPeriod(s, tenantId, subscriptionId, nextPeriodStart, nextPeriodEnd);
 
+      emailInfo = { customerId: subscription.customerId, amount: finalized.amountDue, currency: subscription.currency, invoiceId: invoice.id };
+      chargeSucceeded = true;
+
       return { success: true, invoiceId: invoice.id, chargeId: charge.id, status: 'paid' };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -118,9 +191,23 @@ export async function billSubscription(
 
       await transitionState(s, tenantId, subscriptionId, 'PAYMENT_FAILED', context);
 
+      emailInfo = { customerId: subscription.customerId, amount: finalized.amountDue, currency: subscription.currency, invoiceId: invoice.id };
+      chargeFailed = true;
+      failureReason = message;
+
       return { success: false, invoiceId: invoice.id, chargeId: charge.id, status: 'dunning', failureReason: message };
     }
   });
+
+  if (emailInfo) {
+    if (chargeSucceeded) {
+      await sendReceiptEmail(sql, tenantId, emailInfo.customerId, emailInfo.amount, emailInfo.currency, `Subscription payment for invoice ${emailInfo.invoiceId}`);
+    } else if (chargeFailed) {
+      await sendFailedEmail(sql, tenantId, emailInfo.customerId, emailInfo.amount, emailInfo.currency, failureReason ?? 'Payment failed');
+    }
+  }
+
+  return result;
 }
 
 export async function retryCharge(
@@ -128,7 +215,12 @@ export async function retryCharge(
   tenantId: string,
   invoiceId: string,
 ): Promise<BillingResult> {
-  return withTransaction(sql, async (tx) => {
+  let emailInfo: { customerId: string; amount: number; currency: string; invoiceId: string } | null = null;
+  let chargeSucceeded = false;
+  let chargeFailed = false;
+  let failureReason: string | undefined;
+
+  const result = await withTransaction(sql, async (tx) => {
     const s = asSql(tx);
     const invoice = await invoiceQueries.findInvoiceById(s, tenantId, invoiceId);
     if (!invoice) {
@@ -168,8 +260,10 @@ export async function retryCharge(
       ? await paymentMethodQueries.findPaymentMethodById(s, tenantId, subscription.paymentMethodId)
       : null;
 
+    let usedBackupCard = false;
     if (!pm) {
       pm = await paymentMethodQueries.findBackupPaymentMethod(s, tenantId, subscription.customerId);
+      usedBackupCard = true;
     }
 
     if (!pm) {
@@ -190,7 +284,7 @@ export async function retryCharge(
         return { success: false, invoiceId: invoice.id, chargeId: charge.id, status: 'failed', failureReason: 'Tenant not found' };
       }
 
-      const result = await chargeCard(tenant, {
+      const result = await getPaymentProcessor(tenant).charge({
         token: pm.nombaToken,
         amount: invoice.amountDue,
         currency: invoice.currency,
@@ -207,7 +301,11 @@ export async function retryCharge(
       await decrementCreditForInvoice(s, subscription.id, invoice.total, invoice.amountDue);
 
       await transitionState(s, tenantId, subscription.id, 'PAYMENT_SUCCESS', { actorType: 'system', actorId: 'retry-charge' });
-      return { success: true, invoiceId: invoice.id, chargeId: charge.id, status: 'paid' };
+
+      emailInfo = { customerId: invoice.customerId, amount: invoice.amountDue, currency: invoice.currency, invoiceId: invoice.id };
+      chargeSucceeded = true;
+
+      return { success: true, invoiceId: invoice.id, chargeId: charge.id, status: 'paid', usedBackupCard };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       await invoiceQueries.updateChargeStatus(s, charge.id, 'failed', {
@@ -217,4 +315,14 @@ export async function retryCharge(
       return { success: false, invoiceId: invoice.id, chargeId: charge.id, status: 'dunning', failureReason: message };
     }
   });
+
+  if (emailInfo) {
+    if (chargeSucceeded) {
+      await sendReceiptEmail(sql, tenantId, emailInfo.customerId, emailInfo.amount, emailInfo.currency, `Retry payment for invoice ${emailInfo.invoiceId}`);
+    } else if (chargeFailed) {
+      await sendFailedEmail(sql, tenantId, emailInfo.customerId, emailInfo.amount, emailInfo.currency, failureReason ?? 'Payment failed');
+    }
+  }
+
+  return result;
 }

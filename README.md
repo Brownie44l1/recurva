@@ -122,6 +122,23 @@ bun test             # run unit + integration tests
 bun run typecheck    # TypeScript type checking
 ```
 
+## Monitoring & Alerting
+
+### Sentry (Error Tracking)
+
+1. Create a free project at [sentry.io](https://sentry.io). The same DSN is reused across staging and production — environments are differentiated by the `SENTRY_ENVIRONMENT` env var.
+2. Set `SENTRY_DSN` and `SENTRY_ENVIRONMENT` (expected values: `development`, `staging`, `production`) in your production environment.
+3. Leave both unset in local development — Sentry initialization is skipped automatically.
+
+Billing-critical errors (dunning failures, Nomba API errors, webhook handler failures, billing cycle failures) are automatically reported via `reportBillingError()`.
+
+### Healthchecks.io (Scheduler Heartbeat)
+
+1. Create a free check at [healthchecks.io](https://healthchecks.io). Recommended configuration: **1-minute schedule, 3-minute grace period**.
+2. Set `HEALTHCHECK_DUNNING_URL` to the ping URL in your production environment.
+3. The dunning scheduler pings this URL after every successful run. If the scheduler stops firing, the check will alert you.
+4. Leave unset in local development — the ping is skipped automatically.
+
 ## Documentation
 
 | Doc | Description |
