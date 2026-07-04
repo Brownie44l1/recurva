@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import { getDb, closeDb } from '../../src/db/client';
 import * as subscriptionQueries from '../../src/db/queries/subscription.queries';
+import * as invoiceQueries from '../../src/db/queries/invoice.queries';
 import * as dunningQueries from '../../src/db/queries/dunning.queries';
 import { config } from '../../src/config';
 import * as crypto from 'crypto';
@@ -367,5 +368,241 @@ describe('Nomba Webhook Integration - charge.failure', () => {
     expect(attempts.length).toBe(0);
 
     await cleanupSubscription();
+  });
+});
+
+describe('Nomba Webhook Integration - charge.success', () => {
+  let sql: ReturnType<typeof getDb>;
+  let tenantId: string;
+  let customerId: string;
+  let planId: string;
+  let subscriptionId: string;
+  let invoiceId: string;
+  let chargeId: string;
+  let transactionId: string;
+  let server: any;
+
+  beforeAll(async () => {
+    server = Bun.serve({
+      port: config.PORT,
+      fetch: createApp().fetch,
+    });
+
+    sql = getDb();
+
+    const [tenant] = await sql`
+      INSERT INTO tenants (name, email, nomba_account_id, webhook_secret, mode)
+      VALUES ('WH Success Test', 'wh-success-test@example.com', 'acc_wh_success', 'whsec_success', 'test')
+      RETURNING id
+    `;
+    tenantId = tenant!.id;
+
+    const [customer] = await sql`
+      INSERT INTO customers (tenant_id, email, name, currency)
+      VALUES (${tenantId}, 'wh-success-customer@example.com', 'WH Success Customer', 'NGN')
+      RETURNING id
+    `;
+    customerId = customer!.id;
+
+    const [plan] = await sql`
+      INSERT INTO plans (tenant_id, name, description, billing_type, interval, interval_count, trial_days)
+      VALUES (${tenantId}, 'WH Success Plan', 'Plan for success tests', 'fixed', 'month', 1, 0)
+      RETURNING id
+    `;
+    planId = plan!.id;
+
+    await sql`
+      INSERT INTO plan_currencies (plan_id, currency, amount, unit_amount)
+      VALUES (${planId}, 'NGN', 5000, 0)
+    `;
+  });
+
+  afterAll(async () => {
+    server.stop();
+    await sql`DELETE FROM dunning_attempts WHERE subscription_id IN (SELECT id FROM subscriptions WHERE tenant_id = ${tenantId})`;
+    await sql`DELETE FROM charges WHERE invoice_id IN (SELECT id FROM invoices WHERE tenant_id = ${tenantId})`;
+    await sql`DELETE FROM invoice_line_items WHERE invoice_id IN (SELECT id FROM invoices WHERE tenant_id = ${tenantId})`;
+    await sql`DELETE FROM invoices WHERE tenant_id = ${tenantId}`;
+    await sql`DELETE FROM webhook_events WHERE tenant_id = ${tenantId}`;
+    await sql`DELETE FROM audit_logs WHERE tenant_id = ${tenantId}`;
+    await sql`DELETE FROM payment_methods WHERE tenant_id = ${tenantId}`;
+    await sql`DELETE FROM subscriptions WHERE tenant_id = ${tenantId}`;
+    await sql`DELETE FROM plan_currencies WHERE plan_id = ${planId}`;
+    await sql`DELETE FROM plans WHERE id = ${planId}`;
+    await sql`DELETE FROM customers WHERE id = ${customerId}`;
+    await sql`DELETE FROM tenants WHERE id = ${tenantId}`;
+    await closeDb();
+  });
+
+  async function setupPastDueSubscription() {
+    const now = new Date();
+    const periodEnd = new Date(now.getTime() + 30 * 86400000);
+    const [sub] = await sql`
+      INSERT INTO subscriptions (tenant_id, customer_id, plan_id, currency, status, current_period_start, current_period_end)
+      VALUES (${tenantId}, ${customerId}, ${planId}, 'NGN', 'past_due', ${now}, ${periodEnd})
+      RETURNING id
+    `;
+    subscriptionId = sub!.id;
+
+    transactionId = `txn_success_test_${Date.now()}`;
+
+    const idemKey = `wh_success_idem_${Date.now()}`;
+    const [inv] = await sql`
+      INSERT INTO invoices (tenant_id, customer_id, subscription_id, currency, subtotal, total, amount_due, period_start, period_end, due_date, idempotency_key, status)
+      VALUES (${tenantId}, ${customerId}, ${subscriptionId}, 'NGN', 5000, 5000, 5000, ${now}, ${periodEnd}, ${periodEnd}, ${idemKey}, 'open')
+      RETURNING id
+    `;
+    invoiceId = inv!.id;
+
+    const [chg] = await sql`
+      INSERT INTO charges (tenant_id, customer_id, invoice_id, currency, amount, status, nomba_reference)
+      VALUES (${tenantId}, ${customerId}, ${invoiceId}, 'NGN', 5000, 'pending', ${transactionId})
+      RETURNING id
+    `;
+    chargeId = chg!.id;
+  }
+
+  async function cleanupSubscription() {
+    await sql`DELETE FROM dunning_attempts WHERE subscription_id = ${subscriptionId}`;
+    await sql`DELETE FROM charges WHERE id = ${chargeId}`;
+    await sql`DELETE FROM invoice_line_items WHERE invoice_id = ${invoiceId}`;
+    await sql`DELETE FROM invoices WHERE id = ${invoiceId}`;
+    await sql`DELETE FROM subscriptions WHERE id = ${subscriptionId}`;
+  }
+
+  it('marks invoice paid and transitions subscription to active on valid charge.success webhook', async () => {
+    await setupPastDueSubscription();
+
+    const payload = {
+      event: 'charge.success',
+      eventId: `evt_cs_${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      data: {
+        transactionId,
+        invoiceId,
+        subscriptionId,
+        tenantId,
+        amount: 5000,
+        currency: 'NGN',
+      },
+    };
+
+    const rawBody = JSON.stringify(payload);
+    const signature = signWebhook(rawBody);
+
+    const response = await fetch(`http://localhost:${config.PORT}/webhooks/nomba`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Nomba-Signature': signature,
+      },
+      body: rawBody,
+    });
+
+    expect(response.status).toBe(200);
+    const result = await response.json() as { status: string };
+    expect(result.status).toBe('processed');
+
+    const invoice = await invoiceQueries.findInvoiceById(sql, tenantId, invoiceId);
+    expect(invoice).not.toBeNull();
+    expect(invoice!.status).toBe('paid');
+
+    const sub = await subscriptionQueries.findSubscriptionById(sql, tenantId, subscriptionId);
+    expect(sub).not.toBeNull();
+    expect(sub!.status).toBe('active');
+
+    await cleanupSubscription();
+  });
+
+  it('handles idempotent charge.success gracefully', async () => {
+    await setupPastDueSubscription();
+
+    const payload = {
+      event: 'charge.success',
+      eventId: `evt_cs_dup_${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      data: {
+        transactionId,
+        invoiceId,
+        subscriptionId,
+        tenantId,
+        amount: 5000,
+        currency: 'NGN',
+      },
+    };
+
+    const rawBody = JSON.stringify(payload);
+    const signature = signWebhook(rawBody);
+
+    const response1 = await fetch(`http://localhost:${config.PORT}/webhooks/nomba`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Nomba-Signature': signature,
+      },
+      body: rawBody,
+    });
+    expect(response1.status).toBe(200);
+
+    const response2 = await fetch(`http://localhost:${config.PORT}/webhooks/nomba`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Nomba-Signature': signature,
+      },
+      body: rawBody,
+    });
+    expect(response2.status).toBe(200);
+    const result2 = await response2.json() as { status: string };
+    expect(result2.status).toBe('already_processed');
+
+    await cleanupSubscription();
+  });
+});
+
+describe('Nomba Webhook Integration - chargeback.opened', () => {
+  let sql: ReturnType<typeof getDb>;
+  let server: any;
+
+  beforeAll(async () => {
+    server = Bun.serve({
+      port: config.PORT,
+      fetch: createApp().fetch,
+    });
+    sql = getDb();
+  });
+
+  afterAll(async () => {
+    server.stop();
+  });
+
+  it('returns processed for chargeback.opened webhook', async () => {
+    const payload = {
+      event: 'chargeback.opened',
+      eventId: `evt_cb_${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      data: {
+        transactionId: 'txn_cb_test',
+        invoiceId: '00000000-0000-0000-0000-000000000000',
+        amount: 5000,
+        reason: 'Customer dispute',
+      },
+    };
+
+    const rawBody = JSON.stringify(payload);
+    const signature = signWebhook(rawBody);
+
+    const response = await fetch(`http://localhost:${config.PORT}/webhooks/nomba`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Nomba-Signature': signature,
+      },
+      body: rawBody,
+    });
+
+    expect(response.status).toBe(200);
+    const result = await response.json() as { status: string };
+    expect(result.status).toBe('processed');
   });
 });

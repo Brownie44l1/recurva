@@ -5,7 +5,9 @@ import * as subscriptionQueries from '../../db/queries/subscription.queries';
 import * as planQueries from '../../db/queries/plan.queries';
 import * as usageQueries from '../../db/queries/usage.queries';
 import * as couponQueries from '../../db/queries/coupon.queries';
+import * as tenantQueries from '../../db/queries/tenant.queries';
 import { validateCoupon, applyDiscount } from '../coupon/coupon.service';
+import { calculateVat } from '../tax/vat.service';
 import { NotFoundError } from '../../errors';
 import * as crypto from 'crypto';
 
@@ -68,7 +70,19 @@ export async function buildInvoice(
     }
   }
 
-  const total = Math.max(0, subtotal - discountAmount);
+  const taxableAmount = Math.max(0, subtotal - discountAmount);
+
+  const tenant = await tenantQueries.findTenantById(sql, tenantId);
+  if (!tenant) throw new NotFoundError('Tenant', tenantId);
+
+  const { vatAmount, vatRate, exemptionReason } = calculateVat(
+    taxableAmount,
+    tenant,
+    options.taxExemptionReason,
+  );
+
+  const taxAmount = vatAmount;
+  const total = taxableAmount + taxAmount;
   const amountDue = Math.max(0, total - subscription.creditBalance);
 
   const dueDate = new Date(periodEnd);
@@ -79,6 +93,9 @@ export async function buildInvoice(
     currency: subscription.currency,
     subtotal,
     discountAmount,
+    taxAmount,
+    taxRate: vatRate,
+    taxExemptionReason: exemptionReason,
     total,
     amountDue,
     periodStart,
@@ -109,6 +126,17 @@ export async function buildInvoice(
       amount: -discountAmount,
     });
     lineItems.push(discLineItem);
+  }
+
+  if (taxAmount > 0) {
+    const taxLineItem = await queries.insertLineItem(sql, invoice.id, {
+      type: 'tax',
+      description: `VAT at ${(vatRate * 100).toFixed(1)}%`,
+      quantity: 1,
+      unitAmount: taxAmount,
+      amount: taxAmount,
+    });
+    lineItems.push(taxLineItem);
   }
 
   if (subscription.creditBalance > 0) {

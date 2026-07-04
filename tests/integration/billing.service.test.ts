@@ -24,6 +24,7 @@ import * as subscriptionQueries from '../../src/db/queries/subscription.queries'
 import * as dunningQueries from '../../src/db/queries/dunning.queries';
 import { billSubscription, retryCharge } from '../../src/domain/billing/billing.service';
 import type { Subscription } from '../../src/domain/subscription/subscription.types';
+import type { Charge } from '../../src/domain/invoice/invoice.types';
 
 function toNum(v: unknown): number {
   return typeof v === 'number' ? v : Number(v);
@@ -39,8 +40,8 @@ describe('Billing Service - billSubscription', () => {
   beforeAll(async () => {
     sql = getDb();
     const [tenant] = await sql`
-      INSERT INTO tenants (name, email, nomba_account_id, webhook_secret, mode)
-      VALUES ('Billing Service Test', 'billing-svc-test@example.com', 'acc_bsvc', 'whsec_bsvc', 'test')
+      INSERT INTO tenants (name, email, nomba_account_id, webhook_secret, mode, tax_exempt)
+      VALUES ('Billing Service Test', 'billing-svc-test@example.com', 'acc_bsvc', 'whsec_bsvc', 'test', true)
       RETURNING id
     `;
     tenantId = tenant!.id;
@@ -108,6 +109,10 @@ describe('Billing Service - billSubscription', () => {
         createCheckout: mock(async () => ({ checkoutUrl: '', orderReference: '', status: 'success' })),
         refund: mock(async () => ({ refundId: '', status: 'succeeded', amount: 0 })),
         supportsCurrency: mock(() => true),
+        handleWebhook: mock(async () => ({ id: '', type: 'payment.succeeded', transactionId: '', metadata: {}, rawPayload: {} })),
+        createCustomer: mock(async () => ({ customerId: '' })),
+        attachPaymentMethod: mock(async () => ({ methodId: '', isPrimary: true })),
+        getTransactionStatus: mock(async () => ({ status: 'succeeded', amount: 0, currency: 'NGN' })),
       })),
     }));
 
@@ -182,6 +187,10 @@ describe('Billing Service - billSubscription', () => {
         createCheckout: mock(async () => ({ checkoutUrl: '', orderReference: '', status: 'success' })),
         refund: mock(async () => ({ refundId: '', status: 'succeeded', amount: 0 })),
         supportsCurrency: mock(() => true),
+        handleWebhook: mock(async () => ({ id: '', type: 'payment.succeeded', transactionId: '', metadata: {}, rawPayload: {} })),
+        createCustomer: mock(async () => ({ customerId: '' })),
+        attachPaymentMethod: mock(async () => ({ methodId: '', isPrimary: true })),
+        getTransactionStatus: mock(async () => ({ status: 'succeeded', amount: 0, currency: 'NGN' })),
       })),
     }));
 
@@ -223,6 +232,10 @@ describe('Billing Service - billSubscription', () => {
         createCheckout: mock(async () => ({ checkoutUrl: '', orderReference: '', status: 'success' })),
         refund: mock(async () => ({ refundId: '', status: 'succeeded', amount: 0 })),
         supportsCurrency: mock(() => true),
+        handleWebhook: mock(async () => ({ id: '', type: 'payment.succeeded', transactionId: '', metadata: {}, rawPayload: {} })),
+        createCustomer: mock(async () => ({ customerId: '' })),
+        attachPaymentMethod: mock(async () => ({ methodId: '', isPrimary: true })),
+        getTransactionStatus: mock(async () => ({ status: 'succeeded', amount: 0, currency: 'NGN' })),
       })),
     }));
 
@@ -264,6 +277,10 @@ describe('Billing Service - billSubscription', () => {
         createCheckout: mock(async () => ({ checkoutUrl: '', orderReference: '', status: 'success' })),
         refund: mock(async () => ({ refundId: '', status: 'succeeded', amount: 0 })),
         supportsCurrency: mock(() => true),
+        handleWebhook: mock(async () => ({ id: '', type: 'payment.succeeded', transactionId: '', metadata: {}, rawPayload: {} })),
+        createCustomer: mock(async () => ({ customerId: '' })),
+        attachPaymentMethod: mock(async () => ({ methodId: '', isPrimary: true })),
+        getTransactionStatus: mock(async () => ({ status: 'succeeded', amount: 0, currency: 'NGN' })),
       })),
     }));
 
@@ -307,8 +324,8 @@ describe('Billing Service - retryCharge', () => {
   beforeAll(async () => {
     sql = getDb();
     const [tenant] = await sql`
-      INSERT INTO tenants (name, email, nomba_account_id, webhook_secret, mode)
-      VALUES ('Retry Charge Test', 'retry-test@example.com', 'acc_retry', 'whsec_retry', 'test')
+      INSERT INTO tenants (name, email, nomba_account_id, webhook_secret, mode, tax_exempt)
+      VALUES ('Retry Charge Test', 'retry-test@example.com', 'acc_retry', 'whsec_retry', 'test', true)
       RETURNING id
     `;
     tenantId = tenant!.id;
@@ -386,6 +403,10 @@ describe('Billing Service - retryCharge', () => {
         createCheckout: mock(async () => ({ checkoutUrl: '', orderReference: '', status: 'success' })),
         refund: mock(async () => ({ refundId: '', status: 'succeeded', amount: 0 })),
         supportsCurrency: mock(() => true),
+        handleWebhook: mock(async () => ({ id: '', type: 'payment.succeeded', transactionId: '', metadata: {}, rawPayload: {} })),
+        createCustomer: mock(async () => ({ customerId: '' })),
+        attachPaymentMethod: mock(async () => ({ methodId: '', isPrimary: true })),
+        getTransactionStatus: mock(async () => ({ status: 'succeeded', amount: 0, currency: 'NGN' })),
       })),
     }));
 
@@ -431,6 +452,10 @@ describe('Billing Service - retryCharge', () => {
         createCheckout: mock(async () => ({ checkoutUrl: '', orderReference: '', status: 'success' })),
         refund: mock(async () => ({ refundId: '', status: 'succeeded', amount: 0 })),
         supportsCurrency: mock(() => true),
+        handleWebhook: mock(async () => ({ id: '', type: 'payment.succeeded', transactionId: '', metadata: {}, rawPayload: {} })),
+        createCustomer: mock(async () => ({ customerId: '' })),
+        attachPaymentMethod: mock(async () => ({ methodId: '', isPrimary: true })),
+        getTransactionStatus: mock(async () => ({ status: 'succeeded', amount: 0, currency: 'NGN' })),
       })),
     }));
 
@@ -480,5 +505,257 @@ describe('Billing Service - retryCharge', () => {
     await sql`DELETE FROM invoices WHERE id = ${inv!.id}`;
     await sql`DELETE FROM subscriptions WHERE id = ${sub!.id}`;
     await sql`DELETE FROM customers WHERE id = ${noPmCustomer!.id}`;
+  });
+});
+
+mock.module('../../src/domain/fx/fx.service', () => ({
+  getFxRate: mock(async () => ({ rate: 1500, source: 'config' as const })),
+  convertAmount: mock((amount: number, rate: number) => Math.round(amount * rate)),
+}));
+
+describe('Billing Service - cross-currency', () => {
+  let sql: ReturnType<typeof getDb>;
+  let tenantId: string;
+  let customerId: string;
+  let planId: string;
+  let pmId: string;
+
+  beforeAll(async () => {
+    sql = getDb();
+
+    const [tenant] = await sql`
+      INSERT INTO tenants (name, email, nomba_account_id, webhook_secret, mode, tax_exempt)
+      VALUES ('FX Test', 'fx-test@example.com', 'acc_fx', 'whsec_fx', 'test', true)
+      RETURNING id
+    `;
+    tenantId = tenant!.id;
+
+    const [customer] = await sql`
+      INSERT INTO customers (tenant_id, email, name, currency)
+      VALUES (${tenantId}, 'fx-customer@example.com', 'FX Customer', 'USD')
+      RETURNING id
+    `;
+    customerId = customer!.id;
+
+    const [plan] = await sql`
+      INSERT INTO plans (tenant_id, name, description, billing_type, interval, interval_count, trial_days)
+      VALUES (${tenantId}, 'FX Plan', 'A plan for FX tests', 'fixed', 'month', 1, 0)
+      RETURNING id
+    `;
+    planId = plan!.id;
+
+    await sql`
+      INSERT INTO plan_currencies (plan_id, currency, amount, unit_amount)
+      VALUES (${planId}, 'USD', 10000, 0)
+    `;
+    await sql`
+      INSERT INTO plan_currencies (plan_id, currency, amount, unit_amount)
+      VALUES (${planId}, 'EUR', 9000, 0)
+    `;
+
+    const [pm] = await sql`
+      INSERT INTO payment_methods (tenant_id, customer_id, nomba_token, card_last4, card_brand, card_exp_month, card_exp_year, is_primary)
+      VALUES (${tenantId}, ${customerId}, 'tok_fx', '4242', 'visa', 12, 2028, TRUE)
+      RETURNING id
+    `;
+    pmId = pm!.id;
+  });
+
+  afterAll(async () => {
+    await sql`DELETE FROM invoice_line_items WHERE invoice_id IN (SELECT id FROM invoices WHERE tenant_id = ${tenantId})`;
+    await sql`DELETE FROM charges WHERE invoice_id IN (SELECT id FROM invoices WHERE tenant_id = ${tenantId})`;
+    await sql`DELETE FROM invoices WHERE tenant_id = ${tenantId}`;
+    await sql`DELETE FROM dunning_attempts WHERE subscription_id IN (SELECT id FROM subscriptions WHERE tenant_id = ${tenantId})`;
+    await sql`DELETE FROM subscriptions WHERE tenant_id = ${tenantId}`;
+    await sql`DELETE FROM plan_currencies WHERE plan_id = ${planId}`;
+    await sql`DELETE FROM plans WHERE id = ${planId}`;
+    await sql`DELETE FROM payment_methods WHERE tenant_id = ${tenantId}`;
+    await sql`DELETE FROM audit_logs WHERE tenant_id = ${tenantId}`;
+    await sql`DELETE FROM customers WHERE id = ${customerId}`;
+    await sql`DELETE FROM tenants WHERE id = ${tenantId}`;
+    await closeDb();
+  });
+
+  it('same-currency billing: stores null FX fields on charge and invoice', async () => {
+    const now = new Date();
+    const periodEnd = new Date(now.getTime() + 30 * 86400000);
+    const [sub] = await sql<Subscription[]>`
+      INSERT INTO subscriptions (tenant_id, customer_id, plan_id, currency, status, payment_method_id, current_period_start, current_period_end)
+      VALUES (${tenantId}, ${customerId}, ${planId}, 'USD', 'active', ${pmId}, ${now}, ${periodEnd})
+      RETURNING *
+    `;
+
+    mock.module('../../src/domain/payment/payment.factory', () => ({
+      getPaymentProcessor: mock(() => ({
+        charge: mock(async () => ({
+          status: 'succeeded', chargeId: 'fx-charge-same', transactionId: 'fx-txn-same', amount: 10000, currency: 'USD',
+        })),
+        createCheckout: mock(async () => ({ checkoutUrl: '', orderReference: '', status: 'success' })),
+        refund: mock(async () => ({ refundId: '', status: 'succeeded', amount: 0 })),
+        supportsCurrency: mock(() => true),
+        handleWebhook: mock(async () => ({ id: '', type: 'payment.succeeded', transactionId: '', metadata: {}, rawPayload: {} })),
+        createCustomer: mock(async () => ({ customerId: '' })),
+        attachPaymentMethod: mock(async () => ({ methodId: '', isPrimary: true })),
+        getTransactionStatus: mock(async () => ({ status: 'succeeded', amount: 0, currency: 'USD' })),
+      })),
+    }));
+
+    const result = await billSubscription(sql, tenantId, sub!.id, {
+      actorType: 'system',
+      actorId: 'test',
+    });
+
+    expect(result.success).toBe(true);
+
+    const invoice = await invoiceQueries.findInvoiceById(sql, tenantId, result.invoiceId);
+    expect(invoice?.fxRate).toBeNull();
+    expect(invoice?.settlementCurrency).toBeNull();
+    expect(invoice?.settlementAmount).toBeNull();
+
+    const [charge] = await sql<Charge[]>`SELECT * FROM charges WHERE invoice_id = ${result.invoiceId}`;
+    expect(charge?.fxRate).toBeNull();
+    expect(charge?.settlementCurrency).toBeNull();
+    expect(charge?.settlementAmount).toBeNull();
+
+    await sql`DELETE FROM invoice_line_items WHERE invoice_id = ${result.invoiceId}`;
+    await sql`DELETE FROM charges WHERE invoice_id = ${result.invoiceId}`;
+    await sql`DELETE FROM invoices WHERE id = ${result.invoiceId}`;
+    await sql`DELETE FROM subscriptions WHERE id = ${sub!.id}`;
+  });
+
+  it('cross-currency billing: converts USD invoice to NGN settlement', async () => {
+    const now = new Date();
+    const periodEnd = new Date(now.getTime() + 30 * 86400000);
+    const [sub] = await sql<Subscription[]>`
+      INSERT INTO subscriptions (tenant_id, customer_id, plan_id, currency, status, payment_method_id, current_period_start, current_period_end)
+      VALUES (${tenantId}, ${customerId}, ${planId}, 'USD', 'active', ${pmId}, ${now}, ${periodEnd})
+      RETURNING *
+    `;
+
+    mock.module('../../src/domain/payment/payment.factory', () => ({
+      getPaymentProcessor: mock(() => ({
+        charge: mock(async (opts: { amount: number; currency: string }) => ({
+          status: 'succeeded', chargeId: 'fx-charge-cross', transactionId: 'fx-txn-cross', amount: opts.amount, currency: opts.currency,
+        })),
+        createCheckout: mock(async () => ({ checkoutUrl: '', orderReference: '', status: 'success' })),
+        refund: mock(async () => ({ refundId: '', status: 'succeeded', amount: 0 })),
+        supportsCurrency: mock((currency: string) => currency === 'NGN'),
+        handleWebhook: mock(async () => ({ id: '', type: 'payment.succeeded', transactionId: '', metadata: {}, rawPayload: {} })),
+        createCustomer: mock(async () => ({ customerId: '' })),
+        attachPaymentMethod: mock(async () => ({ methodId: '', isPrimary: true })),
+        getTransactionStatus: mock(async () => ({ status: 'succeeded', amount: 0, currency: 'NGN' })),
+      })),
+    }));
+
+    const result = await billSubscription(sql, tenantId, sub!.id, {
+      actorType: 'system',
+      actorId: 'test',
+    });
+
+    expect(result.success).toBe(true);
+
+    const invoice = await invoiceQueries.findInvoiceById(sql, tenantId, result.invoiceId);
+    expect(invoice?.fxRate).not.toBeNull();
+    expect(invoice?.settlementCurrency).toBe('NGN');
+    expect(invoice?.settlementAmount).not.toBeNull();
+    expect(toNum(invoice!.settlementAmount!)).toBeGreaterThan(0);
+
+    const [charge] = await sql<Charge[]>`SELECT * FROM charges WHERE invoice_id = ${result.invoiceId}`;
+    expect(charge?.fxRate).not.toBeNull();
+    expect(charge?.settlementCurrency).toBe('NGN');
+    expect(charge?.settlementAmount).not.toBeNull();
+
+    expect(charge?.currency).toBe('NGN');
+
+    await sql`DELETE FROM invoice_line_items WHERE invoice_id = ${result.invoiceId}`;
+    await sql`DELETE FROM charges WHERE invoice_id = ${result.invoiceId}`;
+    await sql`DELETE FROM invoices WHERE id = ${result.invoiceId}`;
+    await sql`DELETE FROM subscriptions WHERE id = ${sub!.id}`;
+  });
+
+  it('processor/currency mismatch: converts to NGN when invoice currency not supported', async () => {
+    const now = new Date();
+    const periodEnd = new Date(now.getTime() + 30 * 86400000);
+    const [sub] = await sql<Subscription[]>`
+      INSERT INTO subscriptions (tenant_id, customer_id, plan_id, currency, status, payment_method_id, current_period_start, current_period_end)
+      VALUES (${tenantId}, ${customerId}, ${planId}, 'EUR', 'active', ${pmId}, ${now}, ${periodEnd})
+      RETURNING *
+    `;
+
+    mock.module('../../src/domain/payment/payment.factory', () => ({
+      getPaymentProcessor: mock(() => ({
+        charge: mock(async () => ({ status: 'succeeded', chargeId: 'fx-eur-charge', transactionId: 'fx-eur-txn', amount: 0, currency: 'NGN' })),
+        createCheckout: mock(async () => ({ checkoutUrl: '', orderReference: '', status: 'success' })),
+        refund: mock(async () => ({ refundId: '', status: 'succeeded', amount: 0 })),
+        supportsCurrency: mock((currency: string) => currency === 'NGN'),
+        handleWebhook: mock(async () => ({ id: '', type: 'payment.succeeded', transactionId: '', metadata: {}, rawPayload: {} })),
+        createCustomer: mock(async () => ({ customerId: '' })),
+        attachPaymentMethod: mock(async () => ({ methodId: '', isPrimary: true })),
+        getTransactionStatus: mock(async () => ({ status: 'succeeded', amount: 0, currency: 'NGN' })),
+      })),
+    }));
+
+    const result = await billSubscription(sql, tenantId, sub!.id, {
+      actorType: 'system',
+      actorId: 'test',
+    });
+
+    expect(result.success).toBe(true);
+
+    const [charge] = await sql<Charge[]>`SELECT * FROM charges WHERE invoice_id = ${result.invoiceId}`;
+    expect(charge?.currency).toBe('NGN');
+    expect(charge?.fxRate).not.toBeNull();
+    expect(toNum(charge!.fxRate!)).toBeGreaterThan(0);
+
+    await sql`DELETE FROM invoice_line_items WHERE invoice_id = ${result.invoiceId}`;
+    await sql`DELETE FROM charges WHERE invoice_id = ${result.invoiceId}`;
+    await sql`DELETE FROM invoices WHERE id = ${result.invoiceId}`;
+    await sql`DELETE FROM subscriptions WHERE id = ${sub!.id}`;
+  });
+
+  it('retryCharge cross-currency: converts USD invoice to NGN settlement', async () => {
+    const now = new Date();
+    const periodEnd = new Date(now.getTime() + 30 * 86400000);
+    const [sub] = await sql<Subscription[]>`
+      INSERT INTO subscriptions (tenant_id, customer_id, plan_id, currency, status, payment_method_id, current_period_start, current_period_end)
+      VALUES (${tenantId}, ${customerId}, ${planId}, 'USD', 'past_due', ${pmId}, ${now}, ${periodEnd})
+      RETURNING *
+    `;
+
+    const idemKey = `fx_retry_test_${Date.now()}`;
+    const [inv] = await sql`
+      INSERT INTO invoices (tenant_id, customer_id, subscription_id, currency, subtotal, total, amount_due, period_start, period_end, due_date, idempotency_key, status)
+      VALUES (${tenantId}, ${customerId}, ${sub!.id}, 'USD', 10000, 10000, 10000, ${now}, ${periodEnd}, ${periodEnd}, ${idemKey}, 'open')
+      RETURNING id
+    `;
+
+    mock.module('../../src/domain/payment/payment.factory', () => ({
+      getPaymentProcessor: mock(() => ({
+        charge: mock(async (opts: { amount: number; currency: string }) => ({
+          status: 'succeeded', chargeId: 'fx-retry-charge', transactionId: 'fx-retry-txn', amount: opts.amount, currency: opts.currency,
+        })),
+        createCheckout: mock(async () => ({ checkoutUrl: '', orderReference: '', status: 'success' })),
+        refund: mock(async () => ({ refundId: '', status: 'succeeded', amount: 0 })),
+        supportsCurrency: mock((currency: string) => currency === 'NGN'),
+        handleWebhook: mock(async () => ({ id: '', type: 'payment.succeeded', transactionId: '', metadata: {}, rawPayload: {} })),
+        createCustomer: mock(async () => ({ customerId: '' })),
+        attachPaymentMethod: mock(async () => ({ methodId: '', isPrimary: true })),
+        getTransactionStatus: mock(async () => ({ status: 'succeeded', amount: 0, currency: 'NGN' })),
+      })),
+    }));
+
+    const result = await retryCharge(sql, tenantId, inv!.id);
+
+    expect(result.success).toBe(true);
+    expect(result.status).toBe('paid');
+
+    const [charge] = await sql<Charge[]>`SELECT * FROM charges WHERE invoice_id = ${inv!.id}`;
+    expect(charge?.fxRate).not.toBeNull();
+    expect(charge?.settlementCurrency).toBe('NGN');
+
+    await sql`DELETE FROM invoice_line_items WHERE invoice_id = ${inv!.id}`;
+    await sql`DELETE FROM charges WHERE invoice_id = ${inv!.id}`;
+    await sql`DELETE FROM invoices WHERE id = ${inv!.id}`;
+    await sql`DELETE FROM subscriptions WHERE id = ${sub!.id}`;
   });
 });

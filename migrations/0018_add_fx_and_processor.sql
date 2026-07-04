@@ -1,0 +1,9 @@
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS fx_rate NUMERIC(20, 8);
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS settlement_currency VARCHAR(3);
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS settlement_amount NUMERIC(20, 2);
+
+ALTER TABLE charges ADD COLUMN IF NOT EXISTS fx_rate NUMERIC(20, 8);
+ALTER TABLE charges ADD COLUMN IF NOT EXISTS settlement_currency VARCHAR(3);
+ALTER TABLE charges ADD COLUMN IF NOT EXISTS settlement_amount NUMERIC(20, 2);
+
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS preferred_processor VARCHAR(20) DEFAULT 'nomba';
