@@ -4,6 +4,7 @@ import { getDb } from '../../db/client';
 import * as subscriptionQueries from '../../db/queries/subscription.queries';
 import * as invoiceQueries from '../../db/queries/invoice.queries';
 import { transitionState } from '../../domain/subscription/subscription.service';
+import { executeSideEffects } from '../../domain/subscription/side-effect.dispatcher';
 import { config } from '../../config';
 import { logger } from '../../logger';
 import * as crypto from 'crypto';
@@ -136,10 +137,11 @@ async function handleChargeSuccess(payload: NombaWebhookPayload, sql: Sql): Prom
 
     const subscription = await subscriptionQueries.findSubscriptionById(s, data.tenantId!, invoice.subscriptionId);
     if (subscription && (subscription.status === 'past_due' || subscription.status === 'incomplete')) {
-      await transitionState(s, data.tenantId!, invoice.subscriptionId, 'PAYMENT_SUCCESS', {
+      const { subscription: sub, sideEffects } = await transitionState(s, data.tenantId!, invoice.subscriptionId, 'PAYMENT_SUCCESS', {
         actorType: 'system',
         actorId: 'nomba-webhook',
       });
+      await executeSideEffects(s, data.tenantId!, sub, sideEffects, { actorType: 'system', actorId: 'nomba-webhook' });
     }
 
     logger.info({ invoiceId: data.invoiceId, eventId: payload.eventId }, 'Charge success handled');
@@ -182,10 +184,11 @@ async function handleChargeFailure(payload: NombaWebhookPayload, sql: Sql): Prom
 
     const subscription = await subscriptionQueries.findSubscriptionById(s, data.tenantId!, invoice.subscriptionId);
     if (subscription && subscription.status === 'active') {
-      await transitionState(s, data.tenantId!, invoice.subscriptionId, 'PAYMENT_FAILED', {
+      const { subscription: sub, sideEffects } = await transitionState(s, data.tenantId!, invoice.subscriptionId, 'PAYMENT_FAILED', {
         actorType: 'system',
         actorId: 'nomba-webhook',
       });
+      await executeSideEffects(s, data.tenantId!, sub, sideEffects, { actorType: 'system', actorId: 'nomba-webhook' }, { invoiceId: data.invoiceId });
     }
 
     logger.info({ invoiceId: data.invoiceId, failureCode: data.failureCode, eventId: payload.eventId }, 'Charge failure recorded');

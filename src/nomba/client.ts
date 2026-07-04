@@ -36,9 +36,14 @@ async function getAccessToken(baseUrl: string, accountId: string, clientId: stri
     throw new Error(`Failed to issue Nomba access token: ${response.status} ${errText}`);
   }
 
-  const data = (await response.json()) as { access_token: string; expires_in: number };
-  cachedToken = data.access_token;
-  tokenExpiresAt = Date.now() + data.expires_in * 1000;
+  const body = (await response.json()) as { code: string; data: { access_token: string; expires_at: string } };
+  const tokenData = body.data;
+  if (!tokenData?.access_token) {
+    throw new Error(`Nomba token response missing access_token: ${JSON.stringify(body)}`);
+  }
+  cachedToken = tokenData.access_token;
+  const expiresIn = tokenData.expires_at ? (new Date(tokenData.expires_at).getTime() - Date.now()) : 3600_000;
+  tokenExpiresAt = Date.now() + Math.max(expiresIn, 60_000);
   return cachedToken;
 }
 
@@ -49,7 +54,7 @@ export function createNombaClient(tenant: { id: string; nombaAccountId: string; 
   const clientSecret = isLive ? config.NOMBA_LIVE_PRIVATE_KEY : config.NOMBA_TEST_PRIVATE_KEY;
   const parentAccountId = config.NOMBA_PARENT_ACCOUNT_ID;
 
-  async function request<T>(path: string, body: Record<string, unknown>): Promise<T> {
+  async function request<T>(path: string, body: Record<string, unknown>): Promise<{ data: T } & Record<string, unknown>> {
     const token = await getAccessToken(baseUrl, parentAccountId, clientId, clientSecret);
     const url = `${baseUrl}${path}`;
     const response = await fetch(url, {
@@ -68,28 +73,38 @@ export function createNombaClient(tenant: { id: string; nombaAccountId: string; 
       throw new Error(`Nomba API error: ${response.status} ${errorBody}`);
     }
 
-    return response.json() as Promise<T>;
+    const result = await response.json() as { code: string; data: T } & Record<string, unknown>;
+    return result;
   }
 
   return {
     async charge(input: ChargeInput): Promise<ChargeResult> {
-      // Endpoint to charge tokenized cards: /v1/checkout/tokenized-card-payment
-      return request<ChargeResult>('/v1/checkout/tokenized-card-payment', {
+      const response = await request<{
+        status: boolean; message: string; orderId: string | null; orderReference: string | null;
+      }>('/v1/checkout/tokenized-card-payment', {
         order: {
           orderReference: input.transactionReference,
           customerId: input.metadata?.customerId || '',
           callbackUrl: input.callbackUrl,
           amount: String(input.amount),
           currency: input.currency,
-          accountId: tenant.nombaAccountId, // Scoped to sub-account ID
+          accountId: tenant.nombaAccountId,
         },
         tokenKey: input.token,
       });
+      return {
+        chargeId: response.data?.orderId ?? input.transactionReference,
+        status: response.data?.status ? 'succeeded' : 'failed',
+        amount: input.amount,
+        currency: input.currency,
+        transactionId: response.data?.orderReference ?? input.transactionReference,
+      };
     },
 
     async checkout(input: CheckoutInput): Promise<CheckoutResult> {
-      // Endpoint to create checkout order: /v1/checkout/order
-      return request<CheckoutResult>('/v1/checkout/order', {
+      const response = await request<{
+        success: boolean; message: string; checkoutLink: string; orderReference: string;
+      }>('/v1/checkout/order', {
         order: {
           orderReference: input.orderReference,
           customerId: input.customerId,
@@ -97,21 +112,32 @@ export function createNombaClient(tenant: { id: string; nombaAccountId: string; 
           currency: input.currency,
           callbackUrl: input.callbackUrl,
           returnUrl: input.returnUrl,
-          accountId: tenant.nombaAccountId, // Scoped to sub-account ID
-          orderMetaData: input.metadata,
+          accountId: tenant.nombaAccountId,
+          ...(input.metadata ? { orderMetaData: input.metadata } : {}),
         },
         tokenizeCard: input.saveCard ? 'true' : 'false',
       });
+      return {
+        checkoutUrl: response.data?.checkoutLink ?? '',
+        orderReference: response.data?.orderReference ?? input.orderReference,
+        status: response.data?.success ? 'success' : 'failed',
+      };
     },
 
     async refund(input: RefundInput): Promise<RefundResult> {
-      // Refund endpoint requires sub-account scoping
-      return request<RefundResult>(`/v2/transfers/bank/${tenant.nombaAccountId}`, {
+      const response = await request<{
+        status: boolean; message: string; refundId: string; amount: number;
+      }>(`/v2/transfers/bank/${tenant.nombaAccountId}`, {
         transactionId: input.transactionId,
         amount: input.amount,
         reason: input.reason,
         reference: input.reference,
       });
+      return {
+        refundId: response.data?.refundId ?? 'unknown',
+        status: response.data?.status ? 'succeeded' : 'failed',
+        amount: input.amount,
+      };
     },
   };
 }

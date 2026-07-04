@@ -30,6 +30,10 @@ const envSchema = z.object({
   BILLING_CRON: z.string().default('0 6 * * *'),
   DUNNING_CRON: z.string().default('0 * * * *'),
   WEBHOOK_RETRY_CRON: z.string().default('*/15 * * * *'),
+
+  // Email
+  RESEND_API_KEY: z.string().default(''),
+  EMAIL_FROM: z.string().default('Recurva <noreply@mail.recurva.xyz>'),
 });
 
 const parsed = envSchema.safeParse(process.env);

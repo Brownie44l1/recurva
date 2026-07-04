@@ -1,8 +1,18 @@
 import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
+import { z } from 'zod';
 import { getDb } from '../../db/client';
 import { tenantAuthMiddleware } from '../middleware/tenant-auth';
 import { listInvoices, getInvoice, voidInvoice } from '../../domain/invoice/invoice.service';
 import { retryCharge } from '../../domain/billing/billing.service';
+import { refund } from '../../domain/nomba/nomba.service';
+import * as invoiceQueries from '../../db/queries/invoice.queries';
+import { NotFoundError, ValidationError } from '../../errors';
+
+const refundSchema = z.object({
+  amount: z.number().int().positive(),
+  reason: z.string().max(500).optional(),
+});
 
 const router = new Hono();
 
@@ -39,6 +49,42 @@ router.post('/:id/void', async (c) => {
   const tenant = c.var.tenant;
   const invoice = await voidInvoice(sql, tenant.id, c.req.param('id'));
   return c.json({ invoice });
+});
+
+router.post('/:id/refund', zValidator('json', refundSchema), async (c) => {
+  const sql = getDb();
+  const tenant = c.var.tenant;
+  const invoiceId = c.req.param('id');
+  const { amount, reason } = c.req.valid('json');
+
+  const invoice = await getInvoice(sql, tenant.id, invoiceId);
+  if (invoice.status !== 'paid') {
+    throw new ValidationError('Only paid invoices can be refunded');
+  }
+
+  const charge = await invoiceQueries.findSucceededChargeForInvoice(sql, invoiceId);
+  if (!charge) {
+    throw new NotFoundError('Succeeded charge for invoice', invoiceId);
+  }
+
+  if (!charge.nombaReference) {
+    throw new ValidationError('Charge has no Nomba reference for refund');
+  }
+
+  const reference = `refund_${invoiceId}_${Date.now()}`;
+  const result = await refund(tenant, {
+    transactionId: charge.nombaReference,
+    amount,
+    reason: reason ?? 'Customer requested refund',
+    reference,
+  });
+
+  await invoiceQueries.updateChargeByNombaReference(sql, charge.nombaReference, {
+    status: 'refunded',
+    amountRefunded: amount,
+  });
+
+  return c.json({ refund: result });
 });
 
 export { router as invoiceRoutes };
