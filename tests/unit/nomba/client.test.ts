@@ -1,12 +1,25 @@
 import { describe, it, expect, afterEach, mock } from 'bun:test';
+
+mock.module('../../../src/config', () => ({
+  config: {
+    NOMBA_SANDBOX_BASE_URL: 'https://sandbox.nomba.com',
+    NOMBA_LIVE_BASE_URL: 'https://api.nomba.com',
+    NOMBA_PARENT_ACCOUNT_ID: 'pa_test',
+    NOMBA_TEST_CLIENT_ID: 'test_client_id',
+    NOMBA_TEST_PRIVATE_KEY: 'test_private_key',
+    NOMBA_LIVE_CLIENT_ID: '',
+    NOMBA_LIVE_PRIVATE_KEY: '',
+    NOMBA_REQUEST_TIMEOUT_MS: 15000,
+    NOMBA_CALLBACK_URL: 'https://example.com/callback',
+  },
+}));
+
 import { createNombaClient } from '../../../src/nomba/client';
 
 const originalFetch = globalThis.fetch;
 
 function setupFetch(handler: (url: string, opts?: Record<string, unknown>) => Promise<Response>) {
-  const m = mock(handler);
-  (m as any).preconnect = () => {};
-  globalThis.fetch = m as unknown as typeof fetch;
+  globalThis.fetch = mock(handler) as unknown as typeof fetch;
 }
 
 describe('Nomba Client - Per-Tenant Token Cache', () => {
